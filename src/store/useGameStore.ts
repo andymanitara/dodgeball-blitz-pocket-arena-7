@@ -114,9 +114,11 @@ export const useGameStore = create<GameState>((set) => ({
   addShake: (amount) => set((state) => ({
     shakeIntensity: Math.min(state.shakeIntensity + amount, 2.0) // Cap at 2.0
   })),
-  decayShake: () => set((state) => ({
-    shakeIntensity: Math.max(0, state.shakeIntensity * 0.9)
-  })),
+  decayShake: () => set((state) => {
+    const newIntensity = state.shakeIntensity * 0.9;
+    // Snap to zero if very small to prevent micro-jitters
+    return { shakeIntensity: newIntensity < 0.01 ? 0 : newIntensity };
+  }),
   toggleSetting: (setting) => set((state) => ({
     settings: {
       ...state.settings,

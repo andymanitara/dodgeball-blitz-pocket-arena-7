@@ -8,10 +8,16 @@ export function TouchControls() {
   // Joystick Logic
   const handleTouchStart = (e: React.TouchEvent) => {
     setActive(true);
-    updateJoystick(e.touches[0]);
+    // Use targetTouches to only track fingers specifically on the joystick element
+    // This prevents interference from other fingers (like holding the throw button)
+    if (e.targetTouches.length > 0) {
+        updateJoystick(e.targetTouches[0]);
+    }
   };
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (active) updateJoystick(e.touches[0]);
+    if (active && e.targetTouches.length > 0) {
+        updateJoystick(e.targetTouches[0]);
+    }
   };
   const handleTouchEnd = () => {
     setActive(false);
@@ -33,10 +39,6 @@ export function TouchControls() {
     }
     setJoystickPos({ x: dx, y: dy });
     // Normalize for game input (-1 to 1)
-    // Note: In 3D, Z is forward/back. Screen Y maps to Z.
-    // Screen Y up is negative, but we want forward (negative Z) to be up.
-    // So joystick Y < 0 should mean move forward (Z < 0).
-    // Let's just map directly: Y-up (negative screen) -> Z-negative (forward)
     gameInput.joystick = {
       x: dx / maxDist,
       y: dy / maxDist
@@ -46,31 +48,32 @@ export function TouchControls() {
     <div className="absolute inset-0 pointer-events-none flex flex-col justify-end pb-8 px-4 select-none">
       <div className="flex justify-between items-end w-full max-w-md mx-auto">
         {/* Joystick Area */}
-        <div 
+        <div
           ref={joystickRef}
           className="w-32 h-32 bg-white/10 rounded-full border-2 border-white/20 backdrop-blur-sm relative pointer-events-auto touch-none"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
         >
-          <div 
+          <div
             className="w-12 h-12 bg-blue-500 rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 shadow-lg transition-transform duration-75"
-            style={{ 
-              transform: `translate(calc(-50% + ${joystickPos.x}px), calc(-50% + ${joystickPos.y}px))` 
+            style={{
+              transform: `translate(calc(-50% + ${joystickPos.x}px), calc(-50% + ${joystickPos.y}px))`
             }}
           />
         </div>
         {/* Action Buttons */}
         <div className="flex gap-4 pointer-events-auto">
           <button
-            className="w-20 h-20 rounded-full bg-yellow-500 border-4 border-yellow-600 shadow-lg active:scale-95 active:bg-yellow-600 flex items-center justify-center font-bold text-white text-sm"
-            onTouchStart={() => { gameInput.isDodging = true; }}
+            className="w-20 h-20 rounded-full bg-yellow-500 border-4 border-yellow-600 shadow-lg active:scale-95 active:bg-yellow-600 flex items-center justify-center font-bold text-white text-sm touch-none"
+            onTouchStart={(e) => { e.stopPropagation(); gameInput.isDodging = true; }}
           >
             DODGE
           </button>
           <button
-            className="w-24 h-24 rounded-full bg-red-500 border-4 border-red-600 shadow-lg active:scale-95 active:bg-red-600 flex items-center justify-center font-bold text-white text-lg"
-            onTouchStart={() => { gameInput.isThrowing = true; }}
+            className="w-24 h-24 rounded-full bg-red-500 border-4 border-red-600 shadow-lg active:scale-95 active:bg-red-600 flex items-center justify-center font-bold text-white text-lg touch-none"
+            onTouchStart={(e) => { e.stopPropagation(); gameInput.isThrowing = true; }}
           >
             THROW
           </button>
