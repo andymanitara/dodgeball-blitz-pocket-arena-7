@@ -85,7 +85,8 @@ function runSetupCommands() {
     "bun add three @types/three @react-three/fiber @react-three/drei",
     "bun add three@0.160.0 @types/three@0.160.0 @react-three/fiber@8.16.8 @react-three/drei@9.108.0",
     "bun add lucide-react",
-    "bun add tone"
+    "bun add tone",
+    "bun add zustand"
 ];
     
     if (commands.length === 0) {
