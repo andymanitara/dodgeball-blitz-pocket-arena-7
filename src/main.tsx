@@ -1,7 +1,7 @@
 import '@/lib/errorReporter';
 import { enableMapSet } from "immer";
 enableMapSet();
-import { StrictMode } from 'react'
+import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   createBrowserRouter,
@@ -19,11 +19,28 @@ const router = createBrowserRouter([
     errorElement: <RouteErrorBoundary />,
   },
 ]);
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+function App() {
+  useEffect(() => {
+    // Inject PWA Manifest
+    const link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = '/manifest.json';
+    document.head.appendChild(link);
+    // Inject Theme Color
+    const meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    meta.content = '#0f172a';
+    document.head.appendChild(meta);
+  }, []);
+  return (
     <ErrorBoundary>
       <RouterProvider router={router} />
       <Toaster />
     </ErrorBoundary>
+  );
+}
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
   </StrictMode>,
 )

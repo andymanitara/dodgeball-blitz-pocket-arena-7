@@ -8,7 +8,7 @@ interface MultiplayerState {
   opponentId: string | null;
   error: string | null;
   gameCode: string | null;
-  targetCode: string | null;
+  isQueuing: boolean;
   rematchRequested: boolean;
   opponentRematchRequested: boolean;
   setRole: (role: MultiplayerRole) => void;
@@ -19,8 +19,9 @@ interface MultiplayerState {
   clearError: () => void;
   setRematchRequested: (requested: boolean) => void;
   setOpponentRematchRequested: (requested: boolean) => void;
-  hostGame: () => void;
-  joinGame: (code: string) => void;
+  joinQueue: () => void;
+  leaveQueue: () => void;
+  setGameCode: (code: string) => void;
   reset: () => void;
 }
 export const useMultiplayerStore = create<MultiplayerState>((set) => ({
@@ -30,7 +31,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set) => ({
   opponentId: null,
   error: null,
   gameCode: null,
-  targetCode: null,
+  isQueuing: false,
   rematchRequested: false,
   opponentRematchRequested: false,
   setRole: (role) => set({ role }),
@@ -41,24 +42,9 @@ export const useMultiplayerStore = create<MultiplayerState>((set) => ({
   clearError: () => set({ error: null }),
   setRematchRequested: (rematchRequested) => set({ rematchRequested }),
   setOpponentRematchRequested: (opponentRematchRequested) => set({ opponentRematchRequested }),
-  hostGame: () => {
-    // Generate 6-char alphanumeric code
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    set({
-        role: 'host',
-        gameCode: code,
-        status: 'disconnected', // Will become 'connecting' when Peer initializes
-        error: null
-    });
-  },
-  joinGame: (code) => {
-    set({
-        role: 'client',
-        targetCode: code,
-        status: 'connecting',
-        error: null
-    });
-  },
+  joinQueue: () => set({ isQueuing: true, error: null, status: 'connecting' }),
+  leaveQueue: () => set({ isQueuing: false, status: 'disconnected' }),
+  setGameCode: (gameCode) => set({ gameCode }),
   reset: () => set({
     role: null,
     status: 'disconnected',
@@ -66,7 +52,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set) => ({
     opponentId: null,
     error: null,
     gameCode: null,
-    targetCode: null,
+    isQueuing: false,
     rematchRequested: false,
     opponentRematchRequested: false
   }),

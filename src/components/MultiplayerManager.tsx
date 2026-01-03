@@ -8,24 +8,73 @@ const ID_PREFIX = 'db-blitz-';
 export function MultiplayerManager() {
   const peerRef = useRef<Peer | null>(null);
   const connRef = useRef<DataConnection | null>(null);
+  const queueWsRef = useRef<WebSocket | null>(null);
   // Store Selectors
   const role = useMultiplayerStore(s => s.role);
   const gameCode = useMultiplayerStore(s => s.gameCode);
-  const targetCode = useMultiplayerStore(s => s.targetCode);
+  const isQueuing = useMultiplayerStore(s => s.isQueuing);
   const rematchRequested = useMultiplayerStore(s => s.rematchRequested);
   const opponentRematchRequested = useMultiplayerStore(s => s.opponentRematchRequested);
   const phase = useGameStore(s => s.phase);
   // Actions
+  const setRole = useMultiplayerStore(s => s.setRole);
+  const setGameCode = useMultiplayerStore(s => s.setGameCode);
   const setPeerId = useMultiplayerStore(s => s.setPeerId);
   const setStatus = useMultiplayerStore(s => s.setStatus);
   const setError = useMultiplayerStore(s => s.setError);
   const setOpponentId = useMultiplayerStore(s => s.setOpponentId);
   const resetMultiplayer = useMultiplayerStore(s => s.reset);
+  const leaveQueue = useMultiplayerStore(s => s.leaveQueue);
   const setOpponentRematchRequested = useMultiplayerStore(s => s.setOpponentRematchRequested);
   const setRematchRequested = useMultiplayerStore(s => s.setRematchRequested);
   const startGame = useGameStore(s => s.startGame);
   const resetMatch = useGameStore(s => s.resetMatch);
-  // 1. Define setupConnectionListeners FIRST (wrapped in useCallback)
+  // 1. Queue Connection Logic
+  useEffect(() => {
+    if (isQueuing) {
+      // Connect to Queue WebSocket
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      const wsUrl = `${protocol}//${host}/api/queue`;
+      console.log('Connecting to queue:', wsUrl);
+      const ws = new WebSocket(wsUrl);
+      queueWsRef.current = ws;
+      ws.onopen = () => {
+        console.log('Connected to matchmaking queue');
+      };
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'MATCH_FOUND') {
+            console.log('Match found!', data);
+            leaveQueue(); // Stop queuing UI
+            setGameCode(data.code);
+            setRole(data.role);
+            toast.success('Match Found! Connecting...');
+          }
+        } catch (e) {
+          console.error('Failed to parse queue message', e);
+        }
+      };
+      ws.onclose = () => {
+        console.log('Disconnected from queue');
+        if (useMultiplayerStore.getState().isQueuing) {
+            // If still supposed to be queuing but disconnected, show error
+            // Unless we left intentionally
+        }
+      };
+      ws.onerror = (err) => {
+        console.error('Queue WebSocket error', err);
+        toast.error('Matchmaking service unavailable');
+        leaveQueue();
+      };
+      return () => {
+        ws.close();
+        queueWsRef.current = null;
+      };
+    }
+  }, [isQueuing, leaveQueue, setGameCode, setRole]);
+  // 2. Peer Connection Setup
   const setupConnectionListeners = useCallback((conn: DataConnection, myRole: 'host' | 'client') => {
     conn.on('data', (data: any) => {
       if (myRole === 'host') {
@@ -64,7 +113,7 @@ export function MultiplayerManager() {
       toast.error('Connection lost');
     });
   }, [setStatus, setError, resetMatch, resetMultiplayer, setOpponentRematchRequested, setRematchRequested, startGame]);
-  // 2. Handle Incoming Connection (Host Side)
+  // 3. Handle Incoming Connection (Host Side)
   const handleIncomingConnection = useCallback((conn: DataConnection) => {
     connRef.current = conn;
     setStatus('connecting');
@@ -80,7 +129,7 @@ export function MultiplayerManager() {
     });
     setupConnectionListeners(conn, 'host');
   }, [setStatus, setOpponentId, startGame, setupConnectionListeners]);
-  // 3. Handle Outgoing Connection (Client Side)
+  // 4. Handle Outgoing Connection (Client Side)
   const connectToHost = useCallback((hostCode: string) => {
     if (!peerRef.current) return;
     const hostId = `${ID_PREFIX}${hostCode}`;
@@ -97,30 +146,31 @@ export function MultiplayerManager() {
     });
     setupConnectionListeners(conn, 'client');
   }, [setStatus, setOpponentId, setupConnectionListeners]);
-  // Initialize Peer when Role Changes
+  // Initialize Peer when Role & GameCode are set (after Queue match)
   useEffect(() => {
-    // If no role, cleanup and return
-    if (!role) {
+    // Need both role and gameCode to start PeerJS
+    if (!role || !gameCode) {
         if (peerRef.current) {
             peerRef.current.destroy();
             peerRef.current = null;
         }
         return;
     }
-    // If peer already exists, destroy it to ensure clean state for new role
+    // If peer already exists, destroy it to ensure clean state
     if (peerRef.current) {
         peerRef.current.destroy();
     }
     const isHost = role === 'host';
-    // Host uses specific ID, Client uses random ID
-    const myId = isHost && gameCode ? `${ID_PREFIX}${gameCode}` : undefined;
+    // Host uses specific ID based on gameCode, Client uses random ID
+    const myId = isHost ? `${ID_PREFIX}${gameCode}` : undefined;
     const peer = new Peer(myId);
     peerRef.current = peer;
     peer.on('open', (id) => {
         console.log('Peer initialized:', id);
         setPeerId(id);
-        if (!isHost && role === 'client' && targetCode) {
-            connectToHost(targetCode);
+        if (!isHost) {
+            // Client connects to Host
+            connectToHost(gameCode);
         }
     });
     peer.on('connection', (conn) => {
@@ -128,7 +178,6 @@ export function MultiplayerManager() {
         if (isHost) {
             handleIncomingConnection(conn);
         } else {
-            // Client shouldn't receive connections in this model
             conn.close();
         }
     });
@@ -142,7 +191,7 @@ export function MultiplayerManager() {
         peer.destroy();
         peerRef.current = null;
     };
-  }, [role, gameCode, targetCode, connectToHost, handleIncomingConnection, setPeerId, setError, setStatus]);
+  }, [role, gameCode, connectToHost, handleIncomingConnection, setPeerId, setError, setStatus]);
   // Rematch Request Sender
   useEffect(() => {
     if (rematchRequested && connRef.current?.open) {
@@ -174,8 +223,8 @@ export function MultiplayerManager() {
     if (role !== 'client') return;
     const interval = setInterval(() => {
       if (connRef.current?.open) {
-        connRef.current.send({ 
-          type: 'input', 
+        connRef.current.send({
+          type: 'input',
           payload: {
             joystick: gameInput.joystick,
             isThrowing: gameInput.isThrowing,

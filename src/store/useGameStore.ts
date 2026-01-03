@@ -42,7 +42,7 @@ export const gameInput = {
   isDodging: false,
 };
 export interface GameEvent {
-  id: number;
+  id: string; // Changed to string for UUIDs
   type: 'hit' | 'catch' | 'throw' | 'pickup';
   x: number;
   z: number;

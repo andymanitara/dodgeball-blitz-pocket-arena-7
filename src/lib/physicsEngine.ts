@@ -575,7 +575,7 @@ class PhysicsEngine {
   }
   addEvent(type: 'hit' | 'catch' | 'throw' | 'pickup', x: number, z: number, text?: string) {
     physicsState.events.push({
-        id: Math.random(),
+        id: crypto.randomUUID(),
         type,
         x,
         z,

@@ -99,14 +99,14 @@ function FloatingText({ x, z, text, time }: { x: number, z: number, text: string
     );
 }
 function Fireworks() {
-    const [explosions, setExplosions] = useState<{id: number, x: number, z: number, color: string, time: number}[]>([]);
+    const [explosions, setExplosions] = useState<{id: string, x: number, z: number, color: string, time: number}[]>([]);
     const isPaused = useGameStore(s => s.isPaused);
     useFrame((state) => {
         if (isPaused) return;
         const now = state.clock.elapsedTime;
         // Randomly add explosion (approx 3 per second)
-        if (Math.random() < 0.05) { 
-             const id = Math.random();
+        if (Math.random() < 0.05) {
+             const id = crypto.randomUUID();
              const x = (Math.random() - 0.5) * 12;
              const z = (Math.random() - 0.5) * 12;
              const colors = ['#ef4444', '#3b82f6', '#eab308', '#10b981', '#8b5cf6', '#f472b6'];
@@ -117,7 +117,7 @@ function Fireworks() {
         setExplosions(prev => prev.filter(e => now - e.time < 2));
     });
     return (
-        <group position={[0, 5, 0]}> 
+        <group position={[0, 5, 0]}>
             {explosions.map(e => (
                 <Explosion key={e.id} x={e.x} z={e.z} y={0} color={e.color} />
             ))}
