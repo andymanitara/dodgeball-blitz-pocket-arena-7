@@ -9,6 +9,8 @@ interface MultiplayerState {
   error: string | null;
   isQueuing: boolean;
   queueCount: number;
+  rematchRequested: boolean;
+  opponentRematchRequested: boolean;
   setRole: (role: MultiplayerRole) => void;
   setStatus: (status: ConnectionStatus) => void;
   setPeerId: (id: string) => void;
@@ -17,6 +19,8 @@ interface MultiplayerState {
   clearError: () => void;
   setIsQueuing: (isQueuing: boolean) => void;
   setQueueCount: (count: number) => void;
+  setRematchRequested: (requested: boolean) => void;
+  setOpponentRematchRequested: (requested: boolean) => void;
   joinQueue: (peerId: string) => Promise<boolean>;
   leaveQueue: (peerId: string) => Promise<void>;
   fetchQueueCount: () => Promise<void>;
@@ -30,6 +34,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set) => ({
   error: null,
   isQueuing: false,
   queueCount: 0,
+  rematchRequested: false,
+  opponentRematchRequested: false,
   setRole: (role) => set({ role }),
   setStatus: (status) => set({ status }),
   setPeerId: (peerId) => set({ peerId }),
@@ -38,6 +44,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set) => ({
   clearError: () => set({ error: null }),
   setIsQueuing: (isQueuing) => set({ isQueuing }),
   setQueueCount: (queueCount) => set({ queueCount }),
+  setRematchRequested: (rematchRequested) => set({ rematchRequested }),
+  setOpponentRematchRequested: (opponentRematchRequested) => set({ opponentRematchRequested }),
   joinQueue: async (peerId) => {
     set({ isQueuing: true, error: null });
     try {
@@ -88,6 +96,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set) => ({
     opponentId: null,
     error: null,
     isQueuing: false,
-    queueCount: 0
+    queueCount: 0,
+    rematchRequested: false,
+    opponentRematchRequested: false
   }),
 }));

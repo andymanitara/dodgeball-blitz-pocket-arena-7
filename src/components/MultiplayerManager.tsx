@@ -14,6 +14,8 @@ export function MultiplayerManager() {
   const peerId = useMultiplayerStore(s => s.peerId);
   const status = useMultiplayerStore(s => s.status);
   const isQueuing = useMultiplayerStore(s => s.isQueuing);
+  const rematchRequested = useMultiplayerStore(s => s.rematchRequested);
+  const opponentRematchRequested = useMultiplayerStore(s => s.opponentRematchRequested);
   // Store Actions
   const setPeerId = useMultiplayerStore(s => s.setPeerId);
   const setStatus = useMultiplayerStore(s => s.setStatus);
@@ -23,6 +25,8 @@ export function MultiplayerManager() {
   const setIsQueuing = useMultiplayerStore(s => s.setIsQueuing);
   const setQueueCount = useMultiplayerStore(s => s.setQueueCount);
   const resetMultiplayer = useMultiplayerStore(s => s.reset);
+  const setOpponentRematchRequested = useMultiplayerStore(s => s.setOpponentRematchRequested);
+  const setRematchRequested = useMultiplayerStore(s => s.setRematchRequested);
   const startGame = useGameStore(s => s.startGame);
   const phase = useGameStore(s => s.phase);
   // Handle Connection Logic
@@ -50,6 +54,9 @@ export function MultiplayerManager() {
         // Host receives Inputs from Client
         if (data.type === 'input') {
           physicsEngine.setRemoteInput(data.payload);
+        } else if (data.type === 'rematch_request') {
+          setOpponentRematchRequested(true);
+          toast.info('Opponent wants a rematch!');
         }
       } else {
         // Client receives State from Host
@@ -57,6 +64,14 @@ export function MultiplayerManager() {
           physicsEngine.injectState(data.payload);
         } else if (data.type === 'start') {
           startGame('multiplayer');
+        } else if (data.type === 'restart') {
+          startGame('multiplayer');
+          setRematchRequested(false);
+          setOpponentRematchRequested(false);
+          toast.success('Rematch started!');
+        } else if (data.type === 'rematch_request') {
+          setOpponentRematchRequested(true);
+          toast.info('Opponent wants a rematch!');
         }
       }
     });
@@ -77,7 +92,27 @@ export function MultiplayerManager() {
         toast.info('Opponent disconnected.');
       }
     });
-  }, [setRole, setStatus, setOpponentId, startGame, setIsQueuing]);
+  }, [setRole, setStatus, setOpponentId, startGame, setIsQueuing, setOpponentRematchRequested, setRematchRequested]);
+  // Rematch Request Sender
+  useEffect(() => {
+    if (rematchRequested && connRef.current?.open) {
+      connRef.current.send({ type: 'rematch_request' });
+    }
+  }, [rematchRequested]);
+  // Host Rematch Logic (Trigger Restart)
+  useEffect(() => {
+    if (role === 'host' && rematchRequested && opponentRematchRequested) {
+        // Start Game
+        startGame('multiplayer');
+        physicsEngine.setMode('host'); // Ensure mode is set
+        // Notify Client
+        connRef.current?.send({ type: 'restart' });
+        // Reset flags
+        setRematchRequested(false);
+        setOpponentRematchRequested(false);
+        toast.success('Rematch started!');
+    }
+  }, [role, rematchRequested, opponentRematchRequested, startGame, setRematchRequested, setOpponentRematchRequested]);
   // Lifecycle Management: Cleanup when returning to menu
   useEffect(() => {
     if (phase === 'menu' && status === 'connected') {

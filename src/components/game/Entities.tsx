@@ -88,14 +88,21 @@ export const CharacterModel = ({ entity, color, type, hairStyle }: { entity: any
   const isPaused = useGameStore(s => s.isPaused);
   useFrame((state, delta) => {
     if (!group.current || !bodyGroup.current || isPaused) return;
-    // 1. Position Sync
-    const currentPos = new THREE.Vector3(entity.x, 0, entity.z);
-    group.current.position.copy(currentPos);
+    // 1. Position Sync with Interpolation
+    const targetPos = new THREE.Vector3(entity.x, 0, entity.z);
+    // Snap if distance is too large (teleport/respawn), otherwise lerp
+    // This smoothing factor (0.25) ensures the character remains responsive while smoothing out the discrete network updates.
+    if (group.current.position.distanceTo(targetPos) > 5) {
+        group.current.position.copy(targetPos);
+    } else {
+        group.current.position.lerp(targetPos, 0.25);
+    }
     // 2. Velocity Calculation (Local)
+    // We use the target position for velocity calculation to keep animations responsive to the actual physics state
     const safeDelta = Math.max(delta, 0.001);
-    const velocity = currentPos.clone().sub(prevPos.current).divideScalar(safeDelta);
+    const velocity = targetPos.clone().sub(prevPos.current).divideScalar(safeDelta);
     const speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
-    prevPos.current.copy(currentPos);
+    prevPos.current.copy(targetPos);
     // 3. Rotation & Banking
     // Player faces -Z (back), Bot faces +Z (front)
     const baseRotation = type === 'player' ? Math.PI : 0;

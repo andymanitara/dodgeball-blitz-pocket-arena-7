@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { useUserStore } from '@/store/useUserStore';
+import { useMultiplayerStore } from '@/store/useMultiplayerStore';
 import { Scene } from '@/components/game/Scene';
 import { TouchControls } from '@/components/ui/TouchControls';
 import { GameHUD } from '@/components/ui/GameHUD';
@@ -11,7 +12,7 @@ import { MultiplayerMenu } from '@/components/ui/MultiplayerMenu';
 import { MultiplayerManager } from '@/components/MultiplayerManager';
 import { GameLogic } from '@/components/GameLogic';
 import { Button } from '@/components/ui/button';
-import { Trophy, Skull, Play, RotateCcw, HelpCircle, Settings, Pause, LogOut, User, Medal, Globe } from 'lucide-react';
+import { Trophy, Skull, Play, RotateCcw, HelpCircle, Settings, Pause, LogOut, User, Medal, Globe, RefreshCw, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { physicsEngine } from '@/lib/physicsEngine';
 export function HomePage() {
@@ -24,14 +25,21 @@ export function HomePage() {
   const winner = useGameStore(s => s.winner);
   const playerScore = useGameStore(s => s.playerScore);
   const botScore = useGameStore(s => s.botScore);
+  const gameMode = useGameStore(s => s.gameMode);
   const isAuthenticated = useUserStore(s => s.isAuthenticated);
   const username = useUserStore(s => s.username);
   const stats = useUserStore(s => s.stats);
   const logout = useUserStore(s => s.logout);
+  const rematchRequested = useMultiplayerStore(s => s.rematchRequested);
+  const opponentRematchRequested = useMultiplayerStore(s => s.opponentRematchRequested);
+  const setRematchRequested = useMultiplayerStore(s => s.setRematchRequested);
   const [activeModal, setActiveModal] = useState<'none' | 'howto' | 'settings' | 'multiplayer'>('none');
   const handleSinglePlayer = () => {
     physicsEngine.setMode('single');
     startGame('single');
+  };
+  const handleRematch = () => {
+    setRematchRequested(true);
   };
   // If not authenticated, show Profile Creation only
   if (!isAuthenticated) {
@@ -205,7 +213,7 @@ export function HomePage() {
                 className="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center pointer-events-auto p-6"
             >
               {phase === 'match_over' ? (
-                <div className="text-center">
+                <div className="text-center w-full max-w-md">
                   {winner === 'player' ? (
                     <motion.div
                         animate={{ rotate: [0, -10, 10, 0] }}
@@ -219,12 +227,45 @@ export function HomePage() {
                   <h2 className="text-6xl font-black text-white mb-2 italic">
                     {winner === 'player' ? 'VICTORY!' : 'DEFEAT'}
                   </h2>
-                  <div className="text-4xl font-bold text-slate-300 mb-12 bg-white/10 px-8 py-4 rounded-2xl">
+                  <div className="text-4xl font-bold text-slate-300 mb-8 bg-white/10 px-8 py-4 rounded-2xl">
                     <span className="text-blue-400">{playerScore}</span> - <span className="text-red-400">{botScore}</span>
                   </div>
-                  <Button onClick={resetMatch} size="lg" className="bg-white text-black hover:bg-slate-200 text-xl px-8 py-6 rounded-xl">
-                    <RotateCcw className="mr-2" /> Main Menu
-                  </Button>
+                  {/* Multiplayer Rematch UI */}
+                  {gameMode === 'multiplayer' ? (
+                    <div className="space-y-4 w-full">
+                        {opponentRematchRequested && (
+                            <div className="bg-blue-500/20 border border-blue-500/50 text-blue-200 px-4 py-2 rounded-lg animate-pulse mb-4">
+                                Opponent wants a rematch!
+                            </div>
+                        )}
+                        {rematchRequested ? (
+                             <Button disabled size="lg" className="w-full bg-slate-700 text-slate-300 text-xl px-8 py-6 rounded-xl">
+                                <Loader2 className="mr-2 animate-spin" /> Waiting for opponent...
+                             </Button>
+                        ) : (
+                            <Button 
+                                onClick={handleRematch} 
+                                size="lg" 
+                                className="w-full bg-green-600 hover:bg-green-500 text-white text-xl px-8 py-6 rounded-xl shadow-lg shadow-green-900/50"
+                            >
+                                <RefreshCw className="mr-2" /> REMATCH
+                            </Button>
+                        )}
+                        <Button 
+                            onClick={resetMatch} 
+                            variant="secondary"
+                            size="lg" 
+                            className="w-full bg-slate-800 hover:bg-slate-700 text-white text-xl px-8 py-6 rounded-xl"
+                        >
+                            <LogOut className="mr-2" /> Main Menu
+                        </Button>
+                    </div>
+                  ) : (
+                    // Single Player UI
+                    <Button onClick={resetMatch} size="lg" className="bg-white text-black hover:bg-slate-200 text-xl px-8 py-6 rounded-xl">
+                        <RotateCcw className="mr-2" /> Main Menu
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="text-center">
