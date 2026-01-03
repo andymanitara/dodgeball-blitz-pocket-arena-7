@@ -241,9 +241,9 @@ class PhysicsEngine {
     if (this.bot.invulnerable > 0) this.bot.invulnerable -= dt;
     // 1. Check for Dodge Opportunity (Highest Priority)
     // Look for incoming LETHAL balls
-    const incomingBall = this.balls.find(b => 
-        b.state === 'flying' && 
-        b.owner === 'player' && 
+    const incomingBall = this.balls.find(b =>
+        b.state === 'flying' &&
+        b.owner === 'player' &&
         b.isLethal && // Only dodge lethal balls
         b.z < 0 && // In bot's half
         b.vz < 0 && // Moving towards bot
@@ -416,7 +416,7 @@ class PhysicsEngine {
   }
   tryPickup(entity: Entity, type: 'player' | 'bot') {
     const pickupRange = 1.5;
-    const ball = this.balls.find(b => 
+    const ball = this.balls.find(b =>
         // Can pick up if idle OR (flying but not lethal)
         (b.state === 'idle' || (b.state === 'flying' && !b.isLethal)) &&
         Math.abs(b.x - entity.x) < pickupRange &&
@@ -638,13 +638,59 @@ class PhysicsEngine {
         const newEvents = state.events.filter((e: any) => e.id !== lastId); // Simple dedup
         physicsState.events = [...physicsState.events, ...newEvents].slice(-20);
     }
+    // Game State Sync (New)
+    if (state.game && this.mode === 'client') {
+        const { phase, playerScore, botScore, playerLives, botLives, currentRound, winner, countdown } = state.game;
+        const currentStore = useGameStore.getState();
+        // Map Host Perspective to Client Perspective
+        // Host's Player (Blue) = Client's Opponent (Bot visual)
+        // Host's Bot (Red) = Client's Player (Player visual)
+        const mappedPlayerScore = botScore;
+        const mappedBotScore = playerScore;
+        const mappedPlayerLives = botLives;
+        const mappedBotLives = playerLives;
+        const mappedWinner = winner === 'player' ? 'bot' : (winner === 'bot' ? 'player' : null);
+        // Only update if changed to avoid thrashing
+        if (
+            currentStore.phase !== phase ||
+            currentStore.playerScore !== mappedPlayerScore ||
+            currentStore.botScore !== mappedBotScore ||
+            currentStore.playerLives !== mappedPlayerLives ||
+            currentStore.botLives !== mappedBotLives ||
+            currentStore.currentRound !== currentRound ||
+            currentStore.winner !== mappedWinner ||
+            currentStore.countdown !== countdown
+        ) {
+            useGameStore.setState({
+                phase,
+                playerScore: mappedPlayerScore,
+                botScore: mappedBotScore,
+                playerLives: mappedPlayerLives,
+                botLives: mappedBotLives,
+                currentRound,
+                winner: mappedWinner,
+                countdown
+            });
+        }
+    }
   }
   getSnapshot() {
+    const store = useGameStore.getState();
     return {
         player: physicsState.player,
         bot: physicsState.bot,
         balls: physicsState.balls,
-        events: physicsState.events.slice(-5) // Send last 5 events
+        events: physicsState.events.slice(-5), // Send last 5 events
+        game: {
+            phase: store.phase,
+            playerScore: store.playerScore,
+            botScore: store.botScore,
+            playerLives: store.playerLives,
+            botLives: store.botLives,
+            currentRound: store.currentRound,
+            winner: store.winner,
+            countdown: store.countdown
+        }
     };
   }
 }

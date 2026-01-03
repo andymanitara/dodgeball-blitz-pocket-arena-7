@@ -61,7 +61,13 @@ export function MultiplayerManager() {
       console.log('Connection closed');
       setStatus('disconnected');
       setRole(null);
-      toast.error('Opponent disconnected');
+      // Reset game if active
+      if (useGameStore.getState().phase === 'playing') {
+        useGameStore.getState().resetMatch();
+        toast.error('Opponent disconnected. Match ended.');
+      } else {
+        toast.info('Opponent disconnected.');
+      }
     });
   }, [setRole, setStatus, setOpponentId, startGame, setIsQueuing]);
   // Initialize Peer

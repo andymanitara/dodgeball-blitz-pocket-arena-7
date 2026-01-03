@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { useUserStore } from '@/store/useUserStore';
-import { Heart, Pause } from 'lucide-react';
+import { useMultiplayerStore } from '@/store/useMultiplayerStore';
+import { Heart, Pause, Wifi } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { audioController } from '@/lib/audioController';
@@ -19,6 +20,7 @@ export function GameHUD() {
   const isPaused = useGameStore(s => s.isPaused);
   const gameMode = useGameStore(s => s.gameMode);
   const username = useUserStore(s => s.username);
+  const status = useMultiplayerStore(s => s.status);
   const [showRoundStart, setShowRoundStart] = useState(false);
   const [showGo, setShowGo] = useState(false);
   const prevCountdown = useRef(countdown);
@@ -74,8 +76,8 @@ export function GameHUD() {
             {username.toUpperCase()}: {playerScore}
           </div>
         </div>
-        {/* Pause Button (Center) */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-2 pointer-events-auto">
+        {/* Center Area: Pause & Online Status */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-2 pointer-events-auto flex flex-col items-center gap-2">
             <Button
                 variant="ghost"
                 size="icon"
@@ -84,6 +86,13 @@ export function GameHUD() {
             >
                 <Pause className="w-6 h-6 fill-current" />
             </Button>
+            {/* Online Indicator */}
+            {gameMode === 'multiplayer' && (
+                <div className="flex items-center gap-1 bg-black/40 px-2 py-1 rounded-full backdrop-blur-sm border border-white/10">
+                    <div className={cn("w-2 h-2 rounded-full animate-pulse", status === 'connected' ? "bg-green-500" : "bg-yellow-500")} />
+                    <span className="text-[10px] font-bold text-white tracking-wider">ONLINE</span>
+                </div>
+            )}
         </div>
         {/* Bot/Opponent Stats (Right) */}
         <div className="flex flex-col gap-2 items-end">
