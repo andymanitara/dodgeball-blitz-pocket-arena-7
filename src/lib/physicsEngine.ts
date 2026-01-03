@@ -661,8 +661,19 @@ class PhysicsEngine {
         // 5. Update Shared State
         // We manually update physicsState to reflect the swapped/inverted entities
         // Added rotation: 0 to satisfy type requirements
-        physicsState.player = { ...this.player, isHit: state.bot.isHit, rotation: 0 };
-        physicsState.bot = { ...this.bot, isHit: state.player.isHit, rotation: 0 };
+        physicsState.player.x = this.player.x;
+        physicsState.player.z = this.player.z;
+        physicsState.player.cooldown = this.player.cooldown;
+        physicsState.player.holdingBallId = this.player.holdingBallId;
+        physicsState.player.isHit = state.bot.isHit;
+        physicsState.player.rotation = 0;
+
+        physicsState.bot.x = this.bot.x;
+        physicsState.bot.z = this.bot.z;
+        physicsState.bot.cooldown = this.bot.cooldown;
+        physicsState.bot.holdingBallId = this.bot.holdingBallId;
+        physicsState.bot.isHit = state.player.isHit;
+        physicsState.bot.rotation = 0;
         physicsState.balls = this.balls;
         // 6. Game State Sync
         if (state.game) {
