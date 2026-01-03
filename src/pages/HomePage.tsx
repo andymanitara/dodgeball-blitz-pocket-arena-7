@@ -1,148 +1,84 @@
-// Home page of the app, Currently a demo page for demonstration.
-// Please rewrite this file to implement your own logic. Do not replace or delete it, simply rewrite this HomePage.tsx file.
-import { useEffect } from 'react'
-import { Sparkles } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { ThemeToggle } from '@/components/ThemeToggle'
-import { Toaster, toast } from '@/components/ui/sonner'
-import { create } from 'zustand'
-import { useShallow } from 'zustand/react/shallow'
-import { AppLayout } from '@/components/layout/AppLayout'
-
-// Timer store: independent slice with a clear, minimal API, for demonstration
-type TimerState = {
-  isRunning: boolean;
-  elapsedMs: number;
-  start: () => void;
-  pause: () => void;
-  reset: () => void;
-  tick: (deltaMs: number) => void;
-}
-
-const useTimerStore = create<TimerState>((set) => ({
-  isRunning: false,
-  elapsedMs: 0,
-  start: () => set({ isRunning: true }),
-  pause: () => set({ isRunning: false }),
-  reset: () => set({ elapsedMs: 0, isRunning: false }),
-  tick: (deltaMs) => set((s) => ({ elapsedMs: s.elapsedMs + deltaMs })),
-}))
-
-// Counter store: separate slice to showcase multiple stores without coupling
-type CounterState = {
-  count: number;
-  inc: () => void;
-  reset: () => void;
-}
-
-const useCounterStore = create<CounterState>((set) => ({
-  count: 0,
-  inc: () => set((s) => ({ count: s.count + 1 })),
-  reset: () => set({ count: 0 }),
-}))
-
-function formatDuration(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000))
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
-
+import React from 'react';
+import { useGameStore } from '@/store/useGameStore';
+import { Scene } from '@/components/game/Scene';
+import { TouchControls } from '@/components/ui/TouchControls';
+import { GameHUD } from '@/components/ui/GameHUD';
+import { Button } from '@/components/ui/button';
+import { Trophy, Skull } from 'lucide-react';
 export function HomePage() {
-  // Select only what is needed to avoid unnecessary re-renders
-  const { isRunning, elapsedMs } = useTimerStore(
-    useShallow((s) => ({ isRunning: s.isRunning, elapsedMs: s.elapsedMs })),
-  )
-  const start = useTimerStore((s) => s.start)
-  const pause = useTimerStore((s) => s.pause)
-  const resetTimer = useTimerStore((s) => s.reset)
-  const count = useCounterStore((s) => s.count)
-  const inc = useCounterStore((s) => s.inc)
-  const resetCount = useCounterStore((s) => s.reset)
-
-  // Drive the timer only while running; avoid update-depth issues with a scoped RAF
-  useEffect(() => {
-    if (!isRunning) return
-    let raf = 0
-    let last = performance.now()
-    const loop = () => {
-      const now = performance.now()
-      const delta = now - last
-      last = now
-      // Read store API directly to keep effect deps minimal and stable
-      useTimerStore.getState().tick(delta)
-      raf = requestAnimationFrame(loop)
-    }
-    raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
-  }, [isRunning])
-
-  const onPleaseWait = () => {
-    inc()
-    if (!isRunning) {
-      start()
-      toast.success('Building your app…', {
-        description: 'Hang tight, we\'re setting everything up.',
-      })
-    } else {
-      pause()
-      toast.info('Taking a short pause', {
-        description: 'We\'ll continue shortly.',
-      })
-    }
-  }
-
-  const formatted = formatDuration(elapsedMs)
-
+  const phase = useGameStore(s => s.phase);
+  const startGame = useGameStore(s => s.startGame);
+  const resetMatch = useGameStore(s => s.resetMatch);
+  const winner = useGameStore(s => s.winner);
+  const playerScore = useGameStore(s => s.playerScore);
+  const botScore = useGameStore(s => s.botScore);
   return (
-    <AppLayout>
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4 overflow-hidden relative">
-        <ThemeToggle />
-        <div className="absolute inset-0 bg-gradient-rainbow opacity-10 dark:opacity-20 pointer-events-none" />
-        <div className="text-center space-y-8 relative z-10 animate-fade-in">
-          <div className="flex justify-center">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-primary floating">
-              <Sparkles className="w-8 h-8 text-white rotating" />
-            </div>
-          </div>
-          <h1 className="text-5xl md:text-7xl font-display font-bold text-balance leading-tight">
-            Creating your <span className="text-gradient">app</span>
-          </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto text-pretty">
-            Your application would be ready soon.
-          </p>
-          <div className="flex justify-center gap-4">
-            <Button 
-              size="lg"
-              onClick={onPleaseWait}
-              className="btn-gradient px-8 py-4 text-lg font-semibold hover:-translate-y-0.5 transition-all duration-200"
-              aria-live="polite"
-            >
-              Please Wait
-            </Button>
-          </div>
-          <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
-            <div>
-              Time elapsed: <span className="font-medium tabular-nums text-foreground">{formatted}</span>
-            </div>
-            <div>
-              Coins: <span className="font-medium tabular-nums text-foreground">{count}</span>
-            </div>
-          </div>
-          <div className="flex justify-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => { resetTimer(); resetCount(); toast('Reset complete') }}>
-              Reset
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => { inc(); toast('Coin added') }}>
-              Add Coin
-            </Button>
-          </div>
-        </div>
-        <footer className="absolute bottom-8 text-center text-muted-foreground/80">
-          <p>Powered by Cloudflare</p>
-        </footer>
-        <Toaster richColors closeButton />
+    <div className="w-full h-screen bg-slate-900 relative overflow-hidden touch-none">
+      {/* 3D Scene Layer */}
+      <div className="absolute inset-0 z-0">
+        <Scene />
       </div>
-    </AppLayout>
-  )
+      {/* UI Layer */}
+      <div className="absolute inset-0 z-10 pointer-events-none">
+        {/* Main Menu Overlay */}
+        {phase === 'menu' && (
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center pointer-events-auto p-6 text-center">
+            <h1 className="text-6xl font-black text-white mb-2 tracking-tighter drop-shadow-lg">
+              DODGEBALL<br/><span className="text-blue-500">BLITZ</span>
+            </h1>
+            <p className="text-slate-300 mb-8 text-lg max-w-xs">
+              Swipe to move. Tap to throw. Be the last one standing!
+            </p>
+            <Button 
+              size="lg" 
+              className="text-2xl px-12 py-8 rounded-full bg-gradient-to-r from-blue-600 to-blue-400 hover:scale-105 transition-transform shadow-xl border-4 border-white/20"
+              onClick={startGame}
+            >
+              PLAY NOW
+            </Button>
+          </div>
+        )}
+        {/* In-Game UI */}
+        {phase === 'playing' && (
+          <>
+            <GameHUD />
+            <TouchControls />
+          </>
+        )}
+        {/* Round/Match Over Overlay */}
+        {(phase === 'round_over' || phase === 'match_over') && (
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center pointer-events-auto animate-in fade-in zoom-in duration-300">
+            {phase === 'match_over' ? (
+              <div className="text-center">
+                {winner === 'player' ? (
+                  <Trophy className="w-24 h-24 text-yellow-400 mx-auto mb-4 animate-bounce" />
+                ) : (
+                  <Skull className="w-24 h-24 text-red-500 mx-auto mb-4" />
+                )}
+                <h2 className="text-5xl font-black text-white mb-2">
+                  {winner === 'player' ? 'VICTORY!' : 'DEFEAT'}
+                </h2>
+                <p className="text-2xl text-slate-300 mb-8">
+                  {playerScore} - {botScore}
+                </p>
+                <Button onClick={resetMatch} size="lg" className="bg-white text-black hover:bg-slate-200">
+                  Main Menu
+                </Button>
+              </div>
+            ) : (
+              <div className="text-center">
+                <h2 className="text-4xl font-bold text-white mb-4">ROUND OVER</h2>
+                <p className="text-xl text-slate-300 mb-8">
+                  Next round starting...
+                </p>
+                <Button onClick={startGame} size="lg" className="bg-blue-600 hover:bg-blue-700">
+                  Next Round
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
