@@ -50,7 +50,17 @@ export const Hair = ({ style }: { style: number }) => {
             return null;
     }
 };
-export const CharacterModel = ({ color, type, hairStyle }: { color: string, type: 'player' | 'bot', hairStyle?: number }) => {
+export const CharacterModel = ({ 
+    color, 
+    type, 
+    hairStyle,
+    entity: propEntity 
+}: { 
+    color: string, 
+    type: 'player' | 'bot', 
+    hairStyle?: number,
+    entity?: any 
+}) => {
   const group = useRef<THREE.Group>(null);
   const bodyGroup = useRef<THREE.Group>(null);
   const leftArm = useRef<THREE.Mesh>(null);
@@ -87,9 +97,13 @@ export const CharacterModel = ({ color, type, hairStyle }: { color: string, type
   // Get paused state to prevent animation updates when paused
   const isPaused = useGameStore(s => s.isPaused);
   useFrame((state, delta) => {
-    if (!group.current || !bodyGroup.current || isPaused) return;
+    if (!group.current || !bodyGroup.current) return;
+    // If propEntity is provided (preview mode), ignore pause state
+    // Otherwise, respect game pause
+    if (!propEntity && isPaused) return;
     // Read directly from mutable state to ensure we always have the latest reference
-    const entity = type === 'player' ? physicsState.player : physicsState.bot;
+    // Prioritize propEntity if available (for preview), otherwise use global state
+    const entity = propEntity || (type === 'player' ? physicsState.player : physicsState.bot);
     // 1. Position Sync with Interpolation
     const targetPos = new THREE.Vector3(entity.x, 0, entity.z);
     // Snap if distance is too large (teleport/respawn), otherwise lerp
