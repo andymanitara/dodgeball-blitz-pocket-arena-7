@@ -10,7 +10,7 @@ export interface GameState {
   shakeIntensity: number;
   currentRound: number;
   timeScale: number;
-  countdown: number; // New countdown state
+  countdown: number;
   settings: {
     sound: boolean;
     music: boolean;
@@ -28,7 +28,7 @@ export interface GameState {
   decayShake: () => void;
   toggleSetting: (setting: keyof GameState['settings']) => void;
   setTimeScale: (scale: number) => void;
-  setCountdown: (val: number) => void; // New action
+  setCountdown: (val: number) => void;
 }
 // Mutable input state for high-frequency updates without re-renders
 export const gameInput = {
@@ -46,8 +46,8 @@ export interface GameEvent {
 }
 // Mutable physics state for the engine to write to and React to read from via refs
 export const physicsState = {
-  player: { x: 0, z: 6, rotation: 0, isHit: false },
-  bot: { x: 0, z: -6, rotation: 0, isHit: false },
+  player: { x: 0, z: 6, rotation: 0, isHit: false, cooldown: 0, holdingBallId: null as number | null },
+  bot: { x: 0, z: -6, rotation: 0, isHit: false, cooldown: 0, holdingBallId: null as number | null },
   balls: [] as Array<{
     id: number;
     x: number;
@@ -86,7 +86,7 @@ export const useGameStore = create<GameState>((set) => ({
     winner: null,
     shakeIntensity: 0,
     timeScale: 1.0,
-    countdown: 3, // Start countdown
+    countdown: 3,
   }),
   startNextRound: () => set((state) => ({
     phase: 'playing',
@@ -95,7 +95,7 @@ export const useGameStore = create<GameState>((set) => ({
     currentRound: state.currentRound + 1,
     shakeIntensity: 0,
     timeScale: 1.0,
-    countdown: 3, // Start countdown
+    countdown: 3,
   })),
   resetMatch: () => set({
     phase: 'menu',
@@ -133,11 +133,10 @@ export const useGameStore = create<GameState>((set) => ({
     };
   }),
   addShake: (amount) => set((state) => ({
-    shakeIntensity: Math.min(state.shakeIntensity + amount, 2.0) // Cap at 2.0
+    shakeIntensity: Math.min(state.shakeIntensity + amount, 2.0)
   })),
   decayShake: () => set((state) => {
     const newIntensity = state.shakeIntensity * 0.9;
-    // Snap to zero if very small to prevent micro-jitters
     return { shakeIntensity: newIntensity < 0.01 ? 0 : newIntensity };
   }),
   toggleSetting: (setting) => set((state) => ({

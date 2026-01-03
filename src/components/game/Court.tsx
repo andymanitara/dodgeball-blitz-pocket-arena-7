@@ -60,11 +60,11 @@ export function Court() {
       </Box>
       {/* Top Wall (Bot Side) */}
       <Box args={[COURT_WIDTH + 1, 2, 0.5]} position={[0, 1, -(COURT_LENGTH/2 + 0.25)]} receiveShadow castShadow>
-        <meshStandardMaterial color="#ef4444" /> {/* Red Team Wall */}
+        <meshStandardMaterial color="#ef4444" />
       </Box>
       {/* Bottom Wall (Player Side) */}
       <Box args={[COURT_WIDTH + 1, 2, 0.5]} position={[0, 1, (COURT_LENGTH/2 + 0.25)]} receiveShadow castShadow>
-        <meshStandardMaterial color="#3b82f6" /> {/* Blue Team Wall */}
+        <meshStandardMaterial color="#3b82f6" />
       </Box>
     </group>
   );

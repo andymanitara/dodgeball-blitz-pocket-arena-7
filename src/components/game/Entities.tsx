@@ -56,6 +56,9 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
   const rightArm = useRef<THREE.Mesh>(null);
   const leftLegGroup = useRef<THREE.Group>(null);
   const rightLegGroup = useRef<THREE.Group>(null);
+  // Animation State
+  const prevHoldingBallId = useRef<number | null>(null);
+  const throwTimer = useRef(0);
   // Randomize hair style on mount
   const hairStyle = useMemo(() => Math.floor(Math.random() * 3), []);
   // Define colors
@@ -95,20 +98,54 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
     const tilt = -velocity.x * 0.05; // Bank into turns
     group.current.rotation.y = baseRotation;
     group.current.rotation.z = THREE.MathUtils.lerp(group.current.rotation.z, tilt, 0.1);
-    // 4. Procedural Walk Cycle
-    if (speed > 0.5) {
+    // 4. Animation Logic
+    const isHolding = entity.holdingBallId !== null;
+    // Detect throw trigger (transition from holding to not holding)
+    if (prevHoldingBallId.current !== null && entity.holdingBallId === null) {
+        throwTimer.current = 0.3; // 300ms throw animation
+    }
+    prevHoldingBallId.current = entity.holdingBallId;
+    if (throwTimer.current > 0) {
+        throwTimer.current -= delta;
+        // Throw pose: Arms forward and down
+        if(leftArm.current) leftArm.current.rotation.x = -Math.PI / 2 + 0.5;
+        if(rightArm.current) rightArm.current.rotation.x = -Math.PI / 2 + 0.5;
+    } else if (isHolding) {
+        // Hold pose: Arms up and in
+        if(leftArm.current) {
+            leftArm.current.rotation.x = -Math.PI / 3;
+            leftArm.current.rotation.z = -0.5;
+        }
+        if(rightArm.current) {
+            rightArm.current.rotation.x = -Math.PI / 3;
+            rightArm.current.rotation.z = 0.5;
+        }
+    } else if (speed > 0.5) {
+        // Walk Cycle
         walkTime.current += delta * speed * 3;
         const armAngle = Math.cos(walkTime.current) * 0.6;
         const legAngle = Math.sin(walkTime.current) * 0.8;
-        if(leftArm.current) leftArm.current.rotation.x = -armAngle;
-        if(rightArm.current) rightArm.current.rotation.x = armAngle;
+        if(leftArm.current) {
+            leftArm.current.rotation.x = -armAngle;
+            leftArm.current.rotation.z = 0;
+        }
+        if(rightArm.current) {
+            rightArm.current.rotation.x = armAngle;
+            rightArm.current.rotation.z = 0;
+        }
         if(leftLegGroup.current) leftLegGroup.current.rotation.x = legAngle;
         if(rightLegGroup.current) rightLegGroup.current.rotation.x = -legAngle;
     } else {
-        // Return to idle pose
+        // Idle Pose
         const damp = 10 * delta;
-        if(leftArm.current) leftArm.current.rotation.x = THREE.MathUtils.lerp(leftArm.current.rotation.x, 0, damp);
-        if(rightArm.current) rightArm.current.rotation.x = THREE.MathUtils.lerp(rightArm.current.rotation.x, 0, damp);
+        if(leftArm.current) {
+            leftArm.current.rotation.x = THREE.MathUtils.lerp(leftArm.current.rotation.x, 0, damp);
+            leftArm.current.rotation.z = THREE.MathUtils.lerp(leftArm.current.rotation.z, 0, damp);
+        }
+        if(rightArm.current) {
+            rightArm.current.rotation.x = THREE.MathUtils.lerp(rightArm.current.rotation.x, 0, damp);
+            rightArm.current.rotation.z = THREE.MathUtils.lerp(rightArm.current.rotation.z, 0, damp);
+        }
         if(leftLegGroup.current) leftLegGroup.current.rotation.x = THREE.MathUtils.lerp(leftLegGroup.current.rotation.x, 0, damp);
         if(rightLegGroup.current) rightLegGroup.current.rotation.x = THREE.MathUtils.lerp(rightLegGroup.current.rotation.x, 0, damp);
     }

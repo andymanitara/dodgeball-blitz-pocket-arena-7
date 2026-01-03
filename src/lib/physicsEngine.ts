@@ -1,9 +1,9 @@
 import { gameInput, physicsState, useGameStore } from '@/store/useGameStore';
 import { audioController } from '@/lib/audioController';
-import { 
-  COURT_WIDTH, 
-  COURT_LENGTH, 
-  PLAYER_RADIUS, 
+import {
+  COURT_WIDTH,
+  COURT_LENGTH,
+  PLAYER_RADIUS,
   BALL_RADIUS,
   DODGE_COOLDOWN,
   DODGE_SPEED,
@@ -442,8 +442,15 @@ class PhysicsEngine {
     return dist < (entity.radius + BALL_RADIUS + 0.2) && dy < 1.2;
   }
   bounceBallOff(ball: Ball) {
-    ball.vx = -ball.vx * 0.5;
-    ball.vz = -ball.vz * 0.5;
+    // Calculate current angle
+    const angle = Math.atan2(ball.vz, ball.vx);
+    // Reflect (180 deg) + Random (-45 to +45 deg)
+    // This ensures the ball doesn't just fly straight back to the thrower
+    const randomOffset = (Math.random() - 0.5) * (Math.PI / 2); // +/- 45 deg
+    const newAngle = angle + Math.PI + randomOffset;
+    const speed = Math.sqrt(ball.vx*ball.vx + ball.vz*ball.vz) * 0.5; // Dampen speed
+    ball.vx = Math.cos(newAngle) * speed;
+    ball.vz = Math.sin(newAngle) * speed;
     ball.vy = 8; // High pop up
     ball.owner = null;
     ball.isLethal = false; // Ball loses lethality after hitting someone
@@ -451,13 +458,15 @@ class PhysicsEngine {
   onHit(victim: 'player' | 'bot') {
     const x = victim === 'player' ? this.player.x : this.bot.x;
     const z = victim === 'player' ? this.player.z : this.bot.z;
-    // Visuals & Audio
-    useGameStore.getState().addShake(0.8);
-    audioController.play('hit');
-    this.addEvent('hit', x, z, victim === 'player' ? "OOF!" : "BONK!");
     // Check for Killing Blow
     const currentLives = victim === 'player' ? useGameStore.getState().playerLives : useGameStore.getState().botLives;
     const isKillingBlow = currentLives <= 1;
+    // Visuals & Audio
+    useGameStore.getState().addShake(0.8);
+    audioController.play('hit');
+    // Custom text for killing blow
+    const hitText = isKillingBlow ? "K.O.!" : (victim === 'player' ? "OOF!" : "BONK!");
+    this.addEvent('hit', x, z, hitText);
     // Logic
     if (victim === 'player') {
         useGameStore.getState().decrementPlayerLives();
@@ -514,6 +523,7 @@ class PhysicsEngine {
     physicsState.player.x = this.player.x;
     physicsState.player.z = this.player.z;
     physicsState.player.cooldown = this.player.cooldown; // Sync cooldown for UI
+    physicsState.player.holdingBallId = this.player.holdingBallId; // Sync holding state
     // Visual isHit logic:
     // Character stays on floor (isHit=true) while stunTimer > 0.3
     // Character stands up (isHit=false) during last 0.3s of stun
@@ -521,6 +531,8 @@ class PhysicsEngine {
     physicsState.bot.x = this.bot.x;
     physicsState.bot.z = this.bot.z;
     physicsState.bot.isHit = this.bot.stunTimer > 0.3;
+    physicsState.bot.cooldown = this.bot.cooldown;
+    physicsState.bot.holdingBallId = this.bot.holdingBallId;
     physicsState.balls = this.balls.map(b => ({
         id: b.id,
         x: b.x,

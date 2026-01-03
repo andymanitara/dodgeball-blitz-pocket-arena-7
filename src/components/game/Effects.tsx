@@ -23,14 +23,17 @@ function FloatingText({ x, z, text, time }: { x: number, z: number, text: string
     const age = Date.now() - time;
     if (age > 1000) return null;
     const progress = age / 1000;
-    const yOffset = progress * 2; // Float up
-    const scale = 1 + Math.sin(progress * Math.PI) * 0.5; // Pop effect
+    const isKO = text === "K.O.!";
+    const yOffset = progress * (isKO ? 3 : 2); // Float higher if KO
+    const scaleBase = isKO ? 2 : 1;
+    const scale = scaleBase + Math.sin(progress * Math.PI) * 0.5; // Pop effect
     const opacity = 1 - progress;
+    const color = isKO ? "#ef4444" : "white";
     return (
         <Text
             position={[x, 1.5 + yOffset, z]}
-            fontSize={0.8}
-            color="white"
+            fontSize={isKO ? 1.5 : 0.8}
+            color={color}
             anchorX="center"
             anchorY="middle"
             outlineWidth={0.05}
@@ -48,6 +51,7 @@ export function Effects() {
   useFrame(() => {
     const now = Date.now();
     const activeEvents = physicsState.events.filter(e => now - e.time < 1000);
+    // Only update if count changes or last event ID changes to avoid excessive re-renders
     if (activeEvents.length !== events.length || (activeEvents.length > 0 && activeEvents[activeEvents.length-1].id !== events[events.length-1]?.id)) {
         setEvents([...activeEvents]);
     }
