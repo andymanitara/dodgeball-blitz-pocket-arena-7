@@ -11,7 +11,8 @@ import {
 } from '@/lib/constants';
 // Constants
 const PLAYER_SPEED = 8;
-const BOT_SPEED = 5;
+const BOT_SPEED = 5; // AI Speed
+const REMOTE_SPEED = 8; // Human Opponent Speed
 const FRICTION = 0.92;
 const GRAVITY = 25;
 const THROW_FORCE = 20;
@@ -46,6 +47,7 @@ interface Ball {
   grounded: boolean;
   isLethal: boolean;
 }
+export type PhysicsMode = 'single' | 'host' | 'client';
 class PhysicsEngine {
   player: Entity;
   bot: Entity;
@@ -53,11 +55,23 @@ class PhysicsEngine {
   botState: BotState = BotState.IDLE;
   botTargetBallId: number | null = null;
   botActionTimer: number = 0;
+  mode: PhysicsMode = 'single';
+  remoteInput = {
+    joystick: { x: 0, y: 0 },
+    isThrowing: false,
+    isDodging: false
+  };
   constructor() {
     this.player = this.createEntity(0, 6);
     this.bot = this.createEntity(0, -6);
     this.balls = [];
     this.resetBalls();
+  }
+  setMode(mode: PhysicsMode) {
+    this.mode = mode;
+  }
+  setRemoteInput(input: typeof this.remoteInput) {
+    this.remoteInput = input;
   }
   createEntity(x: number, z: number): Entity {
     return {
@@ -107,13 +121,19 @@ class PhysicsEngine {
   update(dt: number) {
     // Pause physics during countdown
     if (useGameStore.getState().countdown > 0) return;
+    // CLIENT MODE: Skip simulation, state is injected
+    if (this.mode === 'client') return;
     // Decrement stun timers
     if (this.player.stunTimer > 0) this.player.stunTimer -= dt;
     if (this.bot.stunTimer > 0) this.bot.stunTimer -= dt;
-    // 1. Player Movement
+    // 1. Player Movement (Host/Single)
     this.handlePlayerInput(dt);
-    // 2. Bot Logic (State Machine)
-    this.handleBotLogic(dt);
+    // 2. Opponent Logic
+    if (this.mode === 'single') {
+        this.handleBotLogic(dt);
+    } else if (this.mode === 'host') {
+        this.handleRemoteOpponent(dt);
+    }
     // 3. Physics Integration
     this.integratePhysics(dt);
     // 4. Collisions
@@ -165,6 +185,48 @@ class PhysicsEngine {
     // Pickup Ball (Auto)
     if (this.player.holdingBallId === null) {
         this.tryPickup(this.player, 'player');
+    }
+  }
+  handleRemoteOpponent(dt: number) {
+    // STUN CHECK
+    if (this.bot.stunTimer > 0) {
+        this.bot.vx = 0;
+        this.bot.vz = 0;
+        return;
+    }
+    const { joystick, isThrowing, isDodging } = this.remoteInput;
+    // Cooldowns
+    if (this.bot.cooldown > 0) this.bot.cooldown -= dt;
+    if (this.bot.invulnerable > 0) this.bot.invulnerable -= dt;
+    // Movement - INVERTED for Client perspective
+    // Client sends joystick where Up (-Y) means "Forward" (towards center)
+    // For Bot (at -Z), Forward is +Z. So -Y input -> +Z velocity.
+    // Client sends Right (+X). For Bot (facing +Z), Right is -X. So +X input -> -X velocity.
+    if (this.bot.cooldown <= (DODGE_COOLDOWN - DODGE_DURATION)) {
+        this.bot.vx = joystick.x * -1 * REMOTE_SPEED;
+        this.bot.vz = joystick.y * -1 * REMOTE_SPEED;
+    }
+    // Dodge
+    if (isDodging && this.bot.cooldown <= 0) {
+        let dx = joystick.x * -1;
+        let dz = joystick.y * -1;
+        if (Math.abs(dx) < 0.1 && Math.abs(dz) < 0.1) {
+            dz = -1; // Dodge back (away from center, so -Z)
+        }
+        const len = Math.sqrt(dx*dx + dz*dz);
+        this.bot.vx = (dx / len) * DODGE_SPEED;
+        this.bot.vz = (dz / len) * DODGE_SPEED;
+        this.bot.cooldown = DODGE_COOLDOWN;
+        this.bot.invulnerable = 0.35;
+        // Reset flag handled by manager usually, but good to clear here if stateful
+    }
+    // Throw
+    if (isThrowing && this.bot.holdingBallId !== null) {
+        this.throwBall(this.bot, 'bot');
+    }
+    // Pickup
+    if (this.bot.holdingBallId === null) {
+        this.tryPickup(this.bot, 'bot');
     }
   }
   handleBotLogic(dt: number) {
@@ -388,14 +450,20 @@ class PhysicsEngine {
         // Joystick influence (bend the throw)
         dirX += gameInput.joystick.x * 0.5;
     } else {
-        // Bot throws at player with inaccuracy
+        // Bot/Remote throws at player
         const dx = this.player.x - this.bot.x;
         const dz = this.player.z - this.bot.z;
         const len = Math.sqrt(dx*dx + dz*dz);
         dirX = dx / len;
         dirZ = dz / len;
-        // TUNING: Increased inaccuracy from 0.2 to 0.5
-        dirX += (Math.random() - 0.5) * 0.5;
+        if (this.mode === 'single') {
+            // AI Inaccuracy
+            dirX += (Math.random() - 0.5) * 0.5;
+        } else {
+            // Remote player influence (already in remoteInput, but we can add it here if we sent raw joystick)
+            // For now, assume remote player aims directly or we use their joystick to bend
+            dirX += this.remoteInput.joystick.x * 0.5 * -1; // Invert X for perspective
+        }
     }
     // Normalize
     const len = Math.sqrt(dirX*dirX + dirZ*dirZ);
@@ -542,6 +610,42 @@ class PhysicsEngine {
         owner: b.owner,
         isLethal: b.isLethal
     }));
+  }
+  // Client-side state injection
+  injectState(state: any) {
+    if (!state) return;
+    // Update local entities for interpolation/rendering
+    this.player.x = state.player.x;
+    this.player.z = state.player.z;
+    this.player.holdingBallId = state.player.holdingBallId;
+    this.player.stunTimer = state.player.isHit ? 1.0 : 0; // Approximate visual state
+    this.bot.x = state.bot.x;
+    this.bot.z = state.bot.z;
+    this.bot.holdingBallId = state.bot.holdingBallId;
+    this.bot.stunTimer = state.bot.isHit ? 1.0 : 0;
+    // Sync balls
+    this.balls = state.balls.map((b: any) => ({
+        ...b,
+        vx: 0, vy: 0, vz: 0 // Client doesn't need velocity for physics, just position
+    }));
+    // Sync shared state for React
+    physicsState.player = state.player;
+    physicsState.bot = state.bot;
+    physicsState.balls = state.balls;
+    // Merge events if new ones arrived
+    if (state.events && state.events.length > 0) {
+        const lastId = physicsState.events[physicsState.events.length - 1]?.id;
+        const newEvents = state.events.filter((e: any) => e.id !== lastId); // Simple dedup
+        physicsState.events = [...physicsState.events, ...newEvents].slice(-20);
+    }
+  }
+  getSnapshot() {
+    return {
+        player: physicsState.player,
+        bot: physicsState.bot,
+        balls: physicsState.balls,
+        events: physicsState.events.slice(-5) // Send last 5 events
+    };
   }
 }
 export const physicsEngine = new PhysicsEngine();

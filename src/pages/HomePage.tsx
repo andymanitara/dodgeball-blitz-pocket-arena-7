@@ -7,10 +7,13 @@ import { GameHUD } from '@/components/ui/GameHUD';
 import { HowToPlayModal } from '@/components/ui/HowToPlayModal';
 import { SettingsModal } from '@/components/ui/SettingsModal';
 import { ProfileCreation } from '@/components/ui/ProfileCreation';
+import { MultiplayerMenu } from '@/components/ui/MultiplayerMenu';
+import { MultiplayerManager } from '@/components/MultiplayerManager';
 import { GameLogic } from '@/components/GameLogic';
 import { Button } from '@/components/ui/button';
-import { Trophy, Skull, Play, RotateCcw, HelpCircle, Settings, Pause, LogOut, User, Medal } from 'lucide-react';
+import { Trophy, Skull, Play, RotateCcw, HelpCircle, Settings, Pause, LogOut, User, Medal, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { physicsEngine } from '@/lib/physicsEngine';
 export function HomePage() {
   const phase = useGameStore(s => s.phase);
   const isPaused = useGameStore(s => s.isPaused);
@@ -25,15 +28,20 @@ export function HomePage() {
   const username = useUserStore(s => s.username);
   const stats = useUserStore(s => s.stats);
   const logout = useUserStore(s => s.logout);
-  const [activeModal, setActiveModal] = useState<'none' | 'howto' | 'settings'>('none');
+  const [activeModal, setActiveModal] = useState<'none' | 'howto' | 'settings' | 'multiplayer'>('none');
+  const handleSinglePlayer = () => {
+    physicsEngine.setMode('single');
+    startGame('single');
+  };
   // If not authenticated, show Profile Creation only
   if (!isAuthenticated) {
     return <ProfileCreation />;
   }
   return (
     <div className="fixed inset-0 w-full h-[100dvh] bg-slate-900 overflow-hidden touch-none select-none">
-      {/* Logic Controller */}
+      {/* Logic Controllers */}
       <GameLogic />
+      <MultiplayerManager />
       {/* 3D Scene Layer */}
       <div className="absolute inset-0 z-0">
         <Scene />
@@ -91,19 +99,26 @@ export function HomePage() {
                     </div>
                 </div>
               </motion.div>
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="mb-8"
-              >
-                  <Button
-                    size="lg"
-                    className="text-2xl px-12 py-8 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-[0_0_30px_rgba(37,99,235,0.5)] border-4 border-white/20"
-                    onClick={startGame}
-                  >
-                    <Play className="mr-2 w-8 h-8 fill-current" /> PLAY NOW
-                  </Button>
-              </motion.div>
+              <div className="flex flex-col gap-4 w-full max-w-xs mb-8">
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button
+                        size="lg"
+                        className="w-full text-2xl px-8 py-8 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-[0_0_30px_rgba(37,99,235,0.5)] border-4 border-white/20"
+                        onClick={handleSinglePlayer}
+                    >
+                        <Play className="mr-2 w-8 h-8 fill-current" /> SOLO PLAY
+                    </Button>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button
+                        size="lg"
+                        className="w-full text-xl px-8 py-8 rounded-2xl bg-slate-800 hover:bg-slate-700 border-2 border-slate-600"
+                        onClick={() => setActiveModal('multiplayer')}
+                    >
+                        <Globe className="mr-2 w-6 h-6" /> PLAY ONLINE
+                    </Button>
+                </motion.div>
+              </div>
               <div className="flex gap-4">
                 <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                     <Button
@@ -229,6 +244,7 @@ export function HomePage() {
         <AnimatePresence>
             {activeModal === 'howto' && <HowToPlayModal onClose={() => setActiveModal('none')} />}
             {activeModal === 'settings' && <SettingsModal onClose={() => setActiveModal('none')} />}
+            {activeModal === 'multiplayer' && <MultiplayerMenu onClose={() => setActiveModal('none')} />}
         </AnimatePresence>
       </div>
     </div>

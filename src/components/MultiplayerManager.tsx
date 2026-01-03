@@ -1,358 +1,126 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import Peer, { DataConnection } from 'peerjs';
-import { useMultiplayerStore, MultiplayerRole } from '@/store/useMultiplayerStore';
+import { useMultiplayerStore } from '@/store/useMultiplayerStore';
 import { useGameStore, gameInput } from '@/store/useGameStore';
-import { useUserStore } from '@/store/useUserStore';
 import { physicsEngine } from '@/lib/physicsEngine';
-import { toast } from 'sonner';
-const ID_PREFIX = 'db-blitz-';
-const RECONNECT_TIMEOUT_MS = 30000; // 30 seconds
 export function MultiplayerManager() {
   const peerRef = useRef<Peer | null>(null);
   const connRef = useRef<DataConnection | null>(null);
-  const queueWsRef = useRef<WebSocket | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  // Track if the connection drop was accidental (reconnecting) or intentional
-  const isReconnectingRef = useRef(false);
-  // Timeout refs for opponent disconnection
-  const disconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const disconnectToastIdRef = useRef<string | number | null>(null);
-  // Throttling ref for Relay
-  const lastRelaySend = useRef(0);
-  // Store Selectors
   const role = useMultiplayerStore(s => s.role);
-  const gameCode = useMultiplayerStore(s => s.gameCode);
-  const isMultiplayerActive = useMultiplayerStore(s => s.isMultiplayerActive);
-  const rematchRequested = useMultiplayerStore(s => s.rematchRequested);
-  const opponentRematchRequested = useMultiplayerStore(s => s.opponentRematchRequested);
-  const phase = useGameStore(s => s.phase);
-  // User Info for Session
-  const sessionId = useUserStore(s => s.sessionId);
-  const username = useUserStore(s => s.username);
-  // Actions
   const setPeerId = useMultiplayerStore(s => s.setPeerId);
   const setStatus = useMultiplayerStore(s => s.setStatus);
   const setError = useMultiplayerStore(s => s.setError);
   const setOpponentId = useMultiplayerStore(s => s.setOpponentId);
-  const resetMultiplayer = useMultiplayerStore(s => s.reset);
-  const setOpponentRematchRequested = useMultiplayerStore(s => s.setOpponentRematchRequested);
-  const setRematchRequested = useMultiplayerStore(s => s.setRematchRequested);
-  const onMatchFound = useMultiplayerStore(s => s.onMatchFound);
-  const setConnectionType = useMultiplayerStore(s => s.setConnectionType);
+  const setRole = useMultiplayerStore(s => s.setRole);
   const startGame = useGameStore(s => s.startGame);
-  const resetMatch = useGameStore(s => s.resetMatch);
-  // --- DATA HANDLING (Stable Ref Pattern) ---
-  const handleData = useCallback((data: any, myRole: MultiplayerRole) => {
-    if (myRole === 'host') {
-      if (data.type === 'input') {
-        physicsEngine.setRemoteInput(data.payload);
-      }
-      else if (data.type === 'rematch_request') {
-          setOpponentRematchRequested(true);
-          toast.info('Opponent wants a rematch!');
-      }
-    } else {
-      if (data.type === 'state') physicsEngine.injectState(data.payload);
-      else if (data.type === 'start') startGame('multiplayer');
-      else if (data.type === 'restart') {
-          startGame('multiplayer');
-          setRematchRequested(false);
-          setOpponentRematchRequested(false);
-          toast.success('Rematch started!');
-      }
-      else if (data.type === 'rematch_request') {
-          setOpponentRematchRequested(true);
-          toast.info('Opponent wants a rematch!');
-      }
-    }
-  }, [startGame, setOpponentRematchRequested, setRematchRequested]);
-  const handleDataRef = useRef(handleData);
+  const phase = useGameStore(s => s.phase);
+  // Initialize Peer
   useEffect(() => {
-    handleDataRef.current = handleData;
-  }, [handleData]);
-  // --- SENDING LOGIC (Dual Transport / Dual-Cast with Throttling) ---
-  const sendData = useCallback((data: any) => {
-    const now = Date.now();
-    const { forceRelay } = useGameStore.getState().settings;
-    // 1. Attempt P2P Transmission (Best Effort)
-    // Skip P2P if Force Relay is enabled
-    if (!forceRelay && connRef.current?.open) {
-      try {
-        connRef.current.send(data);
-      } catch (e) {
-        // Silent fail for P2P send errors
-      }
-    }
-    // 2. Relay Transmission Logic (Throttled Dual-Cast)
-    // We throttle Relay messages to ~30Hz (33ms) to prevent congestion
-    if (queueWsRef.current?.readyState === WebSocket.OPEN) {
-        if (now - lastRelaySend.current > 33) {
-            queueWsRef.current.send(JSON.stringify({ type: 'RELAY', payload: data }));
-            lastRelaySend.current = now;
-        }
-    }
-  }, []);
-  // --- 1. PERSISTENT WEBSOCKET (Queue + Relay + Heartbeat) ---
-  useEffect(() => {
-    if (!isMultiplayerActive) {
-        if (queueWsRef.current) {
-            queueWsRef.current.close();
-            queueWsRef.current = null;
-        }
-        return;
-    }
-    // Prevent duplicate connection attempts
-    if (queueWsRef.current && (queueWsRef.current.readyState === WebSocket.OPEN || queueWsRef.current.readyState === WebSocket.CONNECTING)) {
-        return;
-    }
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/api/queue`;
-    const ws = new WebSocket(wsUrl);
-    queueWsRef.current = ws;
-    ws.onopen = () => {
-        // Send Session ID immediately to identify user and attempt restore
-        // Include isReconnecting flag to tell server if this is a recovery or new session
-        ws.send(JSON.stringify({ 
-            type: 'JOIN_SESSION', 
-            sessionId, 
-            username,
-            isReconnecting: isReconnectingRef.current 
-        }));
-        // Reset flag after successful handshake
-        isReconnectingRef.current = false;
-    };
-    ws.onmessage = (event) => {
-        try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'MATCH_FOUND') {
-                onMatchFound(data.role, data.code);
-                toast.success('Match Found! Connected via Relay');
-                physicsEngine.setMode(data.role === 'host' ? 'host' : 'client');
-                startGame('multiplayer');
-            }
-            else if (data.type === 'MATCH_RESTORED') {
-                // Handle session restoration
-                onMatchFound(data.role, data.code);
-                toast.success('Connection Restored!');
-                physicsEngine.setMode(data.role === 'host' ? 'host' : 'client');
-                // Ensure game is in playing state if not already
-                if (useGameStore.getState().gameMode !== 'multiplayer') {
-                     startGame('multiplayer');
-                }
-            }
-            else if (data.type === 'OPPONENT_RECONNECTED') {
-                // Clear timeout and warning
-                if (disconnectTimeoutRef.current) {
-                    clearTimeout(disconnectTimeoutRef.current);
-                    disconnectTimeoutRef.current = null;
-                }
-                if (disconnectToastIdRef.current) {
-                    toast.dismiss(disconnectToastIdRef.current);
-                    disconnectToastIdRef.current = null;
-                }
-                toast.success('Opponent reconnected!');
-            }
-            else if (data.type === 'OPPONENT_DISCONNECTED_TEMP') {
-                // Start timeout and show warning
-                if (disconnectTimeoutRef.current) clearTimeout(disconnectTimeoutRef.current);
-                disconnectToastIdRef.current = toast.warning('Opponent disconnected. Waiting for reconnect...', {
-                    duration: Infinity,
-                });
-                disconnectTimeoutRef.current = setTimeout(() => {
-                    if (disconnectToastIdRef.current) toast.dismiss(disconnectToastIdRef.current);
-                    toast.error('Opponent failed to reconnect. Match ended.');
-                    resetMatch();
-                    resetMultiplayer();
-                }, RECONNECT_TIMEOUT_MS);
-            }
-            else if (data.type === 'OPPONENT_LEFT') {
-                // Opponent explicitly left or started a new session
-                if (disconnectToastIdRef.current) toast.dismiss(disconnectToastIdRef.current);
-                if (disconnectTimeoutRef.current) clearTimeout(disconnectTimeoutRef.current);
-                toast.info('Opponent left the match.');
-                resetMatch();
-                resetMultiplayer();
-            }
-            else if (data.type === 'RELAY') {
-                const myRole = useMultiplayerStore.getState().role;
-                if (myRole) {
-                    handleDataRef.current(data.payload, myRole);
-                }
-            }
-            else if (data.type === 'PEER_DISCONNECTED') {
-                toast.error('Opponent disconnected from server');
-                resetMatch();
-                resetMultiplayer();
-            }
-            else if (data.type === 'PONG') {
-                // Heartbeat response - can be used for latency measurement later
-            }
-        } catch (e) {
-            console.error('WS Message Error', e);
-        }
-    };
-    ws.onclose = (event) => {
-        // NEW: Handle Server Reset (Code 4000)
-        if (event.code === 4000 || event.reason === 'Server Reset') {
-            toast.error('Server state was reset. Please rejoin.');
-            resetMatch();
-            resetMultiplayer();
-            isReconnectingRef.current = false; // Prevent reconnect
-            return;
-        }
-        // Automatic Reconnection Logic
-        // Only attempt reconnect if multiplayer is still active (accidental disconnect)
-        if (useMultiplayerStore.getState().isMultiplayerActive) {
-            isReconnectingRef.current = true; // Mark next connection as a reconnect attempt
-            setTimeout(() => {
-                setRetryCount(prev => prev + 1);
-            }, 3000);
-        }
-    };
-    return () => {
-        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-            ws.close();
-        }
-        if (queueWsRef.current === ws) {
-            queueWsRef.current = null;
-        }
-        // Cleanup timeouts
-        if (disconnectTimeoutRef.current) clearTimeout(disconnectTimeoutRef.current);
-        if (disconnectToastIdRef.current) toast.dismiss(disconnectToastIdRef.current);
-    };
-  }, [isMultiplayerActive, onMatchFound, startGame, resetMatch, resetMultiplayer, retryCount, sessionId, username]);
-  // --- HEARTBEAT (Keep-Alive) ---
-  useEffect(() => {
-    if (!isMultiplayerActive) return;
-    const interval = setInterval(() => {
-        if (queueWsRef.current?.readyState === WebSocket.OPEN) {
-            queueWsRef.current.send(JSON.stringify({ type: 'PING' }));
-        }
-    }, 5000); // Send PING every 5 seconds
-    return () => clearInterval(interval);
-  }, [isMultiplayerActive]);
-  // --- 2. P2P CONNECTION (Upgrade) ---
-  const setupP2PListeners = useCallback((conn: DataConnection, myRole: 'host' | 'client') => {
-    conn.on('open', () => {
-        setConnectionType('p2p');
-        setStatus('connected');
-        toast.success('Connection upgraded to P2P!');
-    });
-    conn.on('data', (data: any) => {
-        handleDataRef.current(data, myRole);
-    });
-    conn.on('close', () => {
-      if (queueWsRef.current?.readyState === WebSocket.OPEN) {
-          setConnectionType('relay');
-          toast.warning('P2P lost. Falling back to Relay.');
-      } else {
-          setStatus('disconnected');
-      }
-    });
-    conn.on('error', (err) => {
-      if (useMultiplayerStore.getState().connectionType === 'relay') {
-          // Silent fail
-      } else {
-          setError(err.message);
-      }
-    });
-  }, [setStatus, setError, setConnectionType]);
-  // Initialize PeerJS when Match is Found
-  useEffect(() => {
-    if (!role || !gameCode) {
-        if (peerRef.current) {
-            peerRef.current.destroy();
-            peerRef.current = null;
-        }
-        return;
-    }
-    // If Force Relay is enabled, do NOT initialize P2P
-    if (useGameStore.getState().settings.forceRelay) {
-        toast.info('Force Relay Mode Active. P2P Disabled.');
-        return;
-    }
-    if (peerRef.current) peerRef.current.destroy();
-    const isHost = role === 'host';
-    const myId = isHost ? `${ID_PREFIX}${gameCode}` : undefined;
-    const peer = new Peer(myId, {
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:global.stun.twilio.com:3478' },
-        ],
-      },
-    });
+    const peer = new Peer();
     peerRef.current = peer;
     peer.on('open', (id) => {
-        setPeerId(id);
-        if (!isHost) {
-            const hostId = `${ID_PREFIX}${gameCode}`;
-            const conn = peer.connect(hostId);
-            connRef.current = conn;
-            setupP2PListeners(conn, 'client');
-        }
+      console.log('My peer ID is: ' + id);
+      setPeerId(id);
+      setStatus('disconnected');
     });
     peer.on('connection', (conn) => {
-        if (isHost) {
-            connRef.current = conn;
-            setOpponentId(conn.peer);
-            setupP2PListeners(conn, 'host');
-        } else {
-            conn.close();
-        }
+      console.log('Incoming connection from:', conn.peer);
+      handleConnection(conn, 'host');
     });
     peer.on('error', (err) => {
-        if (useMultiplayerStore.getState().connectionType === 'relay') {
-             toast.warning('P2P Failed. Playing via Relay.');
-        } else {
-             setError(err.message);
-        }
+      console.error('Peer error:', err);
+      setError(err.message);
+      setStatus('error');
     });
     return () => {
-        peer.destroy();
-        peerRef.current = null;
+      peer.destroy();
     };
-  }, [role, gameCode, setPeerId, setError, setupP2PListeners, setOpponentId]);
-  // --- SYNC LOOPS (Using sendData) ---
+  }, []);
+  // Handle Connection Logic
+  const handleConnection = (conn: DataConnection, myRole: 'host' | 'client') => {
+    connRef.current = conn;
+    setRole(myRole);
+    setStatus('connecting');
+    conn.on('open', () => {
+      console.log('Connected to:', conn.peer);
+      setStatus('connected');
+      setOpponentId(conn.peer);
+      // If Host, start the game immediately
+      if (myRole === 'host') {
+        startGame('multiplayer');
+        physicsEngine.setMode('host');
+        // Send start signal
+        conn.send({ type: 'start' });
+      } else {
+        physicsEngine.setMode('client');
+      }
+    });
+    conn.on('data', (data: any) => {
+      if (myRole === 'host') {
+        // Host receives Inputs from Client
+        if (data.type === 'input') {
+          physicsEngine.setRemoteInput(data.payload);
+        }
+      } else {
+        // Client receives State from Host
+        if (data.type === 'state') {
+          physicsEngine.injectState(data.payload);
+        } else if (data.type === 'start') {
+          startGame('multiplayer');
+        }
+      }
+    });
+    conn.on('close', () => {
+      console.log('Connection closed');
+      setStatus('disconnected');
+      setRole(null);
+      // Handle disconnect (maybe pause game or show error)
+    });
+  };
+  // Expose connect function via window or store (hacky but effective for MVP UI)
+  // Better: Listen to store 'opponentId' changes if we want to trigger connect
+  // For now, we'll use a custom event or just let the UI call a global function?
+  // No, let's use a side-effect on a store action if possible, or just export a helper.
+  // We'll attach a listener to the window for the UI to trigger connection.
+  useEffect(() => {
+    const connectHandler = (e: CustomEvent<string>) => {
+      if (!peerRef.current) return;
+      const targetId = e.detail;
+      console.log('Connecting to:', targetId);
+      const conn = peerRef.current.connect(targetId);
+      handleConnection(conn, 'client');
+    };
+    window.addEventListener('connect-peer', connectHandler as EventListener);
+    return () => window.removeEventListener('connect-peer', connectHandler as EventListener);
+  }, []);
+  // Host Broadcast Loop
   useEffect(() => {
     if (role !== 'host') return;
     const interval = setInterval(() => {
-        sendData({ type: 'state', payload: physicsEngine.getSnapshot() });
-    }, 50);
+      if (connRef.current?.open) {
+        const snapshot = physicsEngine.getSnapshot();
+        connRef.current.send({ type: 'state', payload: snapshot });
+      }
+    }, 50); // 20Hz update rate
     return () => clearInterval(interval);
-  }, [role, phase, sendData]);
+  }, [role, phase]);
+  // Client Input Loop
   useEffect(() => {
     if (role !== 'client') return;
     const interval = setInterval(() => {
-        const payload = {
-            joystick: { x: gameInput.joystick.x, y: gameInput.joystick.y },
+      if (connRef.current?.open) {
+        // Send local inputs
+        connRef.current.send({ 
+          type: 'input', 
+          payload: {
+            joystick: gameInput.joystick,
             isThrowing: gameInput.isThrowing,
             isDodging: gameInput.isDodging
-        };
-        sendData({ 
-          type: 'input', 
-          payload 
+          }
         });
-    }, 33);
+      }
+    }, 33); // 30Hz input rate
     return () => clearInterval(interval);
-  }, [role, phase, sendData]);
-  // Rematch Logic
-  useEffect(() => {
-    if (rematchRequested) {
-      sendData({ type: 'rematch_request' });
-    }
-  }, [rematchRequested, sendData]);
-  // Host Rematch Start
-  useEffect(() => {
-    if (role === 'host' && rematchRequested && opponentRematchRequested) {
-        startGame('multiplayer');
-        physicsEngine.setMode('host');
-        sendData({ type: 'restart' });
-        setRematchRequested(false);
-        setOpponentRematchRequested(false);
-        toast.success('Rematch started!');
-    }
-  }, [role, rematchRequested, opponentRematchRequested, startGame, setRematchRequested, setOpponentRematchRequested, sendData]);
-  return null;
+  }, [role, phase]);
+  return null; // Logic only
 }

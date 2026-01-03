@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 export type GamePhase = 'menu' | 'playing' | 'round_over' | 'match_over';
+export type GameMode = 'single' | 'multiplayer';
 export interface GameState {
   phase: GamePhase;
+  gameMode: GameMode;
   isPaused: boolean;
   playerScore: number;
   botScore: number;
@@ -19,7 +21,7 @@ export interface GameState {
   };
   // Actions
   setPhase: (phase: GamePhase) => void;
-  startGame: () => void;
+  startGame: (mode?: GameMode) => void;
   startNextRound: () => void;
   resetMatch: () => void;
   decrementPlayerLives: () => void;
@@ -64,6 +66,7 @@ export const physicsState = {
 };
 export const useGameStore = create<GameState>((set) => ({
   phase: 'menu',
+  gameMode: 'single',
   isPaused: false,
   playerScore: 0,
   botScore: 0,
@@ -80,8 +83,9 @@ export const useGameStore = create<GameState>((set) => ({
     vibration: true,
   },
   setPhase: (phase) => set({ phase }),
-  startGame: () => set({
+  startGame: (mode = 'single') => set({
     phase: 'playing',
+    gameMode: mode,
     isPaused: false,
     playerLives: 3,
     botLives: 3,
