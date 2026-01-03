@@ -86,7 +86,9 @@ function runSetupCommands() {
     "bun add three@0.160.0 @types/three@0.160.0 @react-three/fiber@8.16.8 @react-three/drei@9.108.0",
     "bun add lucide-react",
     "bun add tone",
-    "bun add zustand"
+    "bun add zustand",
+    "bun add canvas-confetti",
+    "bun add @types/canvas-confetti"
 ];
     
     if (commands.length === 0) {
