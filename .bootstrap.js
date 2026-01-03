@@ -77,26 +77,7 @@ function updateWranglerJsonc() {
 }
 
 function runSetupCommands() {
-    const commands = [
-    "bun add three@^0.160.0",
-    "bun add @types/three@^0.160.0",
-    "bun add @react-three/fiber@^8.15.0",
-    "bun add @react-three/drei@^9.100.0",
-    "bun add three @types/three @react-three/fiber @react-three/drei",
-    "bun add three@0.160.0 @types/three@0.160.0 @react-three/fiber@8.16.8 @react-three/drei@9.108.0",
-    "bun add lucide-react",
-    "bun add tone",
-    "bun add zustand",
-    "bun add canvas-confetti",
-    "bun add @types/canvas-confetti",
-    "bun add peerjs",
-    "bun add @cloudflare/workers-types",
-    "bun add @radix-ui/react-tabs",
-    "bun add -d vite-plugin-pwa",
-    "bun install --force",
-    "bun add @radix-ui/react-tooltip",
-    "bun add uuid"
-];
+    const commands = [];
     
     if (commands.length === 0) {
         console.log('⊘ No setup commands to run');
