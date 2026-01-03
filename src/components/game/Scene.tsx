@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useLayoutEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { SoftShadows } from '@react-three/drei';
 import { Court } from './Court';
@@ -6,6 +6,7 @@ import { Entities } from './Entities';
 import { Effects } from './Effects';
 import { physicsEngine } from '@/lib/physicsEngine';
 import { useGameStore } from '@/store/useGameStore';
+import { COURT_WIDTH } from '@/lib/constants';
 import * as THREE from 'three';
 function PhysicsLoop() {
   const phase = useGameStore(s => s.phase);
@@ -20,14 +21,32 @@ function PhysicsLoop() {
   return null;
 }
 function CameraRig() {
-    const { camera } = useThree();
-    const basePos = useRef(new THREE.Vector3(0, 14, 10)); // Higher angle
+    const { camera, size } = useThree();
+    const basePos = useRef(new THREE.Vector3(0, 14, 10)); // Default high angle
     const shakeIntensity = useGameStore(s => s.shakeIntensity);
     const decayShake = useGameStore(s => s.decayShake);
-    useEffect(() => {
-        camera.position.copy(basePos.current);
+    // Responsive Camera Logic
+    useLayoutEffect(() => {
+        const aspect = size.width / size.height;
+        const targetWidth = COURT_WIDTH + 2; // 10 + 2 units margin
+        // Vertical FOV is 45 degrees
+        const vFovRad = (45 * Math.PI) / 180;
+        // Calculate required distance to see targetWidth
+        // visibleWidth = 2 * dist * tan(vFov/2) * aspect
+        const requiredDist = targetWidth / (2 * Math.tan(vFovRad / 2) * aspect);
+        // Default vector (0, 14, 10) has length ~17.2
+        const defaultVector = new THREE.Vector3(0, 14, 10);
+        const defaultDist = defaultVector.length();
+        // We only want to pull back if we need MORE distance than default
+        // (i.e. on narrow screens). On wide screens, we stay at default to avoid being too far.
+        const finalDist = Math.max(defaultDist, requiredDist);
+        const direction = defaultVector.normalize();
+        const newPos = direction.multiplyScalar(finalDist);
+        basePos.current.copy(newPos);
+        // Immediate update
+        camera.position.copy(newPos);
         camera.lookAt(0, 0, 0);
-    }, [camera]);
+    }, [size.width, size.height, camera]);
     useFrame(() => {
         if (shakeIntensity > 0) {
             const rx = (Math.random() - 0.5) * shakeIntensity;
@@ -40,9 +59,11 @@ function CameraRig() {
             );
             decayShake();
         } else {
-            // Return to base smoothly
+            // Smooth return to base
             camera.position.lerp(basePos.current, 0.1);
         }
+        // Always look at center
+        camera.lookAt(0, 0, 0);
     });
     return null;
 }

@@ -1,10 +1,7 @@
 import { gameInput, physicsState, useGameStore } from '@/store/useGameStore';
 import { audioController } from '@/lib/audioController';
+import { COURT_WIDTH, COURT_LENGTH, PLAYER_RADIUS, BALL_RADIUS } from '@/lib/constants';
 // Constants
-const COURT_WIDTH = 10;
-const COURT_LENGTH = 18; // -9 to 9
-const PLAYER_RADIUS = 0.5;
-const BALL_RADIUS = 0.3;
 const PLAYER_SPEED = 8;
 const BOT_SPEED = 5;
 const DODGE_SPEED = 18;
