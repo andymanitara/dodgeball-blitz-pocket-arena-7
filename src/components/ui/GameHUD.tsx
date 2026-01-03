@@ -17,6 +17,7 @@ export function GameHUD() {
   const setCountdown = useGameStore(s => s.setCountdown);
   const togglePause = useGameStore(s => s.togglePause);
   const isPaused = useGameStore(s => s.isPaused);
+  const gameMode = useGameStore(s => s.gameMode);
   const username = useUserStore(s => s.username);
   const [showRoundStart, setShowRoundStart] = useState(false);
   const [showGo, setShowGo] = useState(false);
@@ -84,7 +85,7 @@ export function GameHUD() {
                 <Pause className="w-6 h-6 fill-current" />
             </Button>
         </div>
-        {/* Bot Stats (Right) */}
+        {/* Bot/Opponent Stats (Right) */}
         <div className="flex flex-col gap-2 items-end">
           <div className="flex gap-1">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -103,7 +104,7 @@ export function GameHUD() {
             ))}
           </div>
           <div className="bg-red-600/90 backdrop-blur text-white px-4 py-1 rounded-full font-black text-lg shadow-lg self-end border-2 border-red-400">
-            BOT: {botScore}
+            {gameMode === 'multiplayer' ? 'OPPONENT' : 'BOT'}: {botScore}
           </div>
         </div>
       </div>

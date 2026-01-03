@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, ArrowRight, Users, Loader2, X } from 'lucide-react';
+import { Copy, ArrowRight, Users, Loader2, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,10 +13,23 @@ export function MultiplayerMenu({ onClose }: MultiplayerMenuProps) {
   const peerId = useMultiplayerStore(s => s.peerId);
   const status = useMultiplayerStore(s => s.status);
   const [targetId, setTargetId] = useState('');
+  const [copied, setCopied] = useState(false);
+  // Auto-close when connected
+  useEffect(() => {
+    if (status === 'connected') {
+      const timer = setTimeout(() => {
+        onClose();
+        toast.success('Connected to match!');
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [status, onClose]);
   const handleCopy = () => {
     if (peerId) {
       navigator.clipboard.writeText(peerId);
       toast.success('Match Code copied!');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
   const handleConnect = () => {
@@ -49,11 +62,17 @@ export function MultiplayerMenu({ onClose }: MultiplayerMenuProps) {
                 <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
                     <p className="text-xs text-slate-400 mb-2">Share this code with your friend:</p>
                     <div className="flex gap-2">
-                        <div className="flex-1 bg-black/30 rounded-lg flex items-center px-3 font-mono text-lg text-blue-300 truncate">
-                            {peerId || <Loader2 className="w-4 h-4 animate-spin" />}
+                        <div className="flex-1 bg-black/30 rounded-lg flex items-center px-3 font-mono text-lg text-blue-300 truncate select-all">
+                            {peerId || <Loader2 className="w-4 h-4 animate-spin text-slate-500" />}
                         </div>
-                        <Button size="icon" variant="secondary" onClick={handleCopy} disabled={!peerId}>
-                            <Copy className="w-4 h-4" />
+                        <Button 
+                            size="icon" 
+                            variant={copied ? "default" : "secondary"}
+                            className={copied ? "bg-green-600 hover:bg-green-500" : ""}
+                            onClick={handleCopy} 
+                            disabled={!peerId}
+                        >
+                            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                         </Button>
                     </div>
                 </div>
@@ -68,24 +87,31 @@ export function MultiplayerMenu({ onClose }: MultiplayerMenuProps) {
             <div className="space-y-3">
                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Join a Match</h3>
                 <div className="flex gap-2">
-                    <Input 
-                        placeholder="Enter Match Code..." 
-                        className="bg-slate-800 border-slate-700 text-white h-12 font-mono"
+                    <Input
+                        placeholder="Enter Match Code..."
+                        className="bg-slate-800 border-slate-700 text-white h-12 font-mono focus:ring-blue-500"
                         value={targetId}
                         onChange={(e) => setTargetId(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
                     />
-                    <Button 
+                    <Button
                         className="h-12 w-12 bg-blue-600 hover:bg-blue-500"
                         onClick={handleConnect}
-                        disabled={status === 'connecting'}
+                        disabled={status === 'connecting' || !targetId.trim()}
                     >
                         {status === 'connecting' ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
                     </Button>
                 </div>
             </div>
             {status === 'connecting' && (
-                <div className="text-center text-yellow-400 animate-pulse text-sm font-medium">
-                    Connecting to opponent...
+                <div className="flex items-center justify-center gap-2 text-yellow-400 animate-pulse text-sm font-medium pt-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Connecting to opponent...</span>
+                </div>
+            )}
+            {status === 'error' && (
+                <div className="text-center text-red-400 text-sm font-medium pt-2">
+                    Connection failed. Please try again.
                 </div>
             )}
           </CardContent>

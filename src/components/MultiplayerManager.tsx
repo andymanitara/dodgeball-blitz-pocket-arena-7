@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import Peer, { DataConnection } from 'peerjs';
 import { useMultiplayerStore } from '@/store/useMultiplayerStore';
 import { useGameStore, gameInput } from '@/store/useGameStore';
@@ -14,30 +14,8 @@ export function MultiplayerManager() {
   const setRole = useMultiplayerStore(s => s.setRole);
   const startGame = useGameStore(s => s.startGame);
   const phase = useGameStore(s => s.phase);
-  // Initialize Peer
-  useEffect(() => {
-    const peer = new Peer();
-    peerRef.current = peer;
-    peer.on('open', (id) => {
-      console.log('My peer ID is: ' + id);
-      setPeerId(id);
-      setStatus('disconnected');
-    });
-    peer.on('connection', (conn) => {
-      console.log('Incoming connection from:', conn.peer);
-      handleConnection(conn, 'host');
-    });
-    peer.on('error', (err) => {
-      console.error('Peer error:', err);
-      setError(err.message);
-      setStatus('error');
-    });
-    return () => {
-      peer.destroy();
-    };
-  }, []);
-  // Handle Connection Logic
-  const handleConnection = (conn: DataConnection, myRole: 'host' | 'client') => {
+  // Handle Connection Logic - Wrapped in useCallback to be a stable dependency
+  const handleConnection = useCallback((conn: DataConnection, myRole: 'host' | 'client') => {
     connRef.current = conn;
     setRole(myRole);
     setStatus('connecting');
@@ -76,12 +54,30 @@ export function MultiplayerManager() {
       setRole(null);
       // Handle disconnect (maybe pause game or show error)
     });
-  };
-  // Expose connect function via window or store (hacky but effective for MVP UI)
-  // Better: Listen to store 'opponentId' changes if we want to trigger connect
-  // For now, we'll use a custom event or just let the UI call a global function?
-  // No, let's use a side-effect on a store action if possible, or just export a helper.
-  // We'll attach a listener to the window for the UI to trigger connection.
+  }, [setRole, setStatus, setOpponentId, startGame]);
+  // Initialize Peer
+  useEffect(() => {
+    const peer = new Peer();
+    peerRef.current = peer;
+    peer.on('open', (id) => {
+      console.log('My peer ID is: ' + id);
+      setPeerId(id);
+      setStatus('disconnected');
+    });
+    peer.on('connection', (conn) => {
+      console.log('Incoming connection from:', conn.peer);
+      handleConnection(conn, 'host');
+    });
+    peer.on('error', (err) => {
+      console.error('Peer error:', err);
+      setError(err.message);
+      setStatus('error');
+    });
+    return () => {
+      peer.destroy();
+    };
+  }, [setPeerId, setStatus, setError, handleConnection]);
+  // Expose connect function via window event
   useEffect(() => {
     const connectHandler = (e: CustomEvent<string>) => {
       if (!peerRef.current) return;
@@ -92,7 +88,7 @@ export function MultiplayerManager() {
     };
     window.addEventListener('connect-peer', connectHandler as EventListener);
     return () => window.removeEventListener('connect-peer', connectHandler as EventListener);
-  }, []);
+  }, [handleConnection]);
   // Host Broadcast Loop
   useEffect(() => {
     if (role !== 'host') return;
