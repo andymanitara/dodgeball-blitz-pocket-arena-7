@@ -241,9 +241,9 @@ class PhysicsEngine {
     if (this.bot.invulnerable > 0) this.bot.invulnerable -= dt;
     // 1. Check for Dodge Opportunity (Highest Priority)
     // Look for incoming LETHAL balls
-    const incomingBall = this.balls.find(b =>
-        b.state === 'flying' &&
-        b.owner === 'player' &&
+    const incomingBall = this.balls.find(b => 
+        b.state === 'flying' && 
+        b.owner === 'player' && 
         b.isLethal && // Only dodge lethal balls
         b.z < 0 && // In bot's half
         b.vz < 0 && // Moving towards bot
@@ -416,7 +416,7 @@ class PhysicsEngine {
   }
   tryPickup(entity: Entity, type: 'player' | 'bot') {
     const pickupRange = 1.5;
-    const ball = this.balls.find(b =>
+    const ball = this.balls.find(b => 
         // Can pick up if idle OR (flying but not lethal)
         (b.state === 'idle' || (b.state === 'flying' && !b.isLethal)) &&
         Math.abs(b.x - entity.x) < pickupRange &&
@@ -614,63 +614,112 @@ class PhysicsEngine {
   // Client-side state injection
   injectState(state: any) {
     if (!state) return;
-    // Update local entities for interpolation/rendering
-    this.player.x = state.player.x;
-    this.player.z = state.player.z;
-    this.player.holdingBallId = state.player.holdingBallId;
-    this.player.stunTimer = state.player.isHit ? 1.0 : 0; // Approximate visual state
-    this.bot.x = state.bot.x;
-    this.bot.z = state.bot.z;
-    this.bot.holdingBallId = state.bot.holdingBallId;
-    this.bot.stunTimer = state.bot.isHit ? 1.0 : 0;
-    // Sync balls
-    this.balls = state.balls.map((b: any) => ({
-        ...b,
-        vx: 0, vy: 0, vz: 0 // Client doesn't need velocity for physics, just position
-    }));
-    // Sync shared state for React
-    physicsState.player = state.player;
-    physicsState.bot = state.bot;
-    physicsState.balls = state.balls;
-    // Merge events if new ones arrived
-    if (state.events && state.events.length > 0) {
-        const lastId = physicsState.events[physicsState.events.length - 1]?.id;
-        const newEvents = state.events.filter((e: any) => e.id !== lastId); // Simple dedup
-        physicsState.events = [...physicsState.events, ...newEvents].slice(-20);
-    }
-    // Game State Sync (New)
-    if (state.game && this.mode === 'client') {
-        const { phase, playerScore, botScore, playerLives, botLives, currentRound, winner, countdown } = state.game;
-        const currentStore = useGameStore.getState();
-        // Map Host Perspective to Client Perspective
-        // Host's Player (Blue) = Client's Opponent (Bot visual)
-        // Host's Bot (Red) = Client's Player (Player visual)
-        const mappedPlayerScore = botScore;
-        const mappedBotScore = playerScore;
-        const mappedPlayerLives = botLives;
-        const mappedBotLives = playerLives;
-        const mappedWinner = winner === 'player' ? 'bot' : (winner === 'bot' ? 'player' : null);
-        // Only update if changed to avoid thrashing
-        if (
-            currentStore.phase !== phase ||
-            currentStore.playerScore !== mappedPlayerScore ||
-            currentStore.botScore !== mappedBotScore ||
-            currentStore.playerLives !== mappedPlayerLives ||
-            currentStore.botLives !== mappedBotLives ||
-            currentStore.currentRound !== currentRound ||
-            currentStore.winner !== mappedWinner ||
-            currentStore.countdown !== countdown
-        ) {
-            useGameStore.setState({
-                phase,
-                playerScore: mappedPlayerScore,
-                botScore: mappedBotScore,
-                playerLives: mappedPlayerLives,
-                botLives: mappedBotLives,
-                currentRound,
-                winner: mappedWinner,
-                countdown
-            });
+    if (this.mode === 'client') {
+        // --- PERSPECTIVE SWAPPING & INVERSION ---
+        // The Client controls the "Bot" entity on the Host.
+        // But visually, the Client should see themselves as the "Player" (Blue) at the bottom.
+        // So we map Host's Bot -> Local Player, and Host's Player -> Local Bot.
+        // We also invert coordinates (x -> -x, z -> -z) so the game world is symmetric.
+        // 1. Map Host's Bot (Client) to Local Player
+        this.player.x = -state.bot.x;
+        this.player.z = -state.bot.z;
+        this.player.holdingBallId = state.bot.holdingBallId;
+        this.player.stunTimer = state.bot.isHit ? 1.0 : 0;
+        this.player.cooldown = state.bot.cooldown;
+        // 2. Map Host's Player (Host) to Local Bot
+        this.bot.x = -state.player.x;
+        this.bot.z = -state.player.z;
+        this.bot.holdingBallId = state.player.holdingBallId;
+        this.bot.stunTimer = state.player.isHit ? 1.0 : 0;
+        this.bot.cooldown = state.player.cooldown;
+        // 3. Sync Balls with Inversion and Owner Swap
+        this.balls = state.balls.map((b: any) => ({
+            ...b,
+            x: -b.x,
+            z: -b.z,
+            vx: -b.vx,
+            vz: -b.vz,
+            // Swap owner: 'player' (Host) -> 'bot' (Opponent), 'bot' (Client) -> 'player' (Self)
+            owner: b.owner === 'player' ? 'bot' : (b.owner === 'bot' ? 'player' : null)
+        }));
+        // 4. Sync Events with Inversion and Time Reset
+        if (state.events && state.events.length > 0) {
+            const lastId = physicsState.events[physicsState.events.length - 1]?.id;
+            // Filter new events
+            const newEvents = state.events
+                .filter((e: any) => e.id !== lastId && !physicsState.events.find(pe => pe.id === e.id))
+                .map((e: any) => ({
+                    ...e,
+                    x: -e.x, // Invert event position
+                    z: -e.z,
+                    time: Date.now() // Reset time to local clock to fix persistence issues
+                }));
+            if (newEvents.length > 0) {
+                 physicsState.events = [...physicsState.events, ...newEvents].slice(-20);
+            }
+        }
+        // 5. Update Shared State
+        // We manually update physicsState to reflect the swapped/inverted entities
+        physicsState.player = { ...this.player, isHit: state.bot.isHit }; 
+        physicsState.bot = { ...this.bot, isHit: state.player.isHit };
+        physicsState.balls = this.balls;
+        // 6. Game State Sync
+        if (state.game) {
+             const { phase, playerScore, botScore, playerLives, botLives, currentRound, winner, countdown } = state.game;
+             const currentStore = useGameStore.getState();
+             // Map Scores and Lives
+             const mappedPlayerScore = botScore;
+             const mappedBotScore = playerScore;
+             const mappedPlayerLives = botLives;
+             const mappedBotLives = playerLives;
+             const mappedWinner = winner === 'player' ? 'bot' : (winner === 'bot' ? 'player' : null);
+             if (
+                currentStore.phase !== phase ||
+                currentStore.playerScore !== mappedPlayerScore ||
+                currentStore.botScore !== mappedBotScore ||
+                currentStore.playerLives !== mappedPlayerLives ||
+                currentStore.botLives !== mappedBotLives ||
+                currentStore.currentRound !== currentRound ||
+                currentStore.winner !== mappedWinner ||
+                currentStore.countdown !== countdown
+            ) {
+                useGameStore.setState({
+                    phase,
+                    playerScore: mappedPlayerScore,
+                    botScore: mappedBotScore,
+                    playerLives: mappedPlayerLives,
+                    botLives: mappedBotLives,
+                    currentRound,
+                    winner: mappedWinner,
+                    countdown
+                });
+            }
+        }
+    } else {
+        // --- HOST / SINGLE PLAYER (Standard Injection) ---
+        // Update local entities for interpolation/rendering
+        this.player.x = state.player.x;
+        this.player.z = state.player.z;
+        this.player.holdingBallId = state.player.holdingBallId;
+        this.player.stunTimer = state.player.isHit ? 1.0 : 0; 
+        this.bot.x = state.bot.x;
+        this.bot.z = state.bot.z;
+        this.bot.holdingBallId = state.bot.holdingBallId;
+        this.bot.stunTimer = state.bot.isHit ? 1.0 : 0;
+        // Sync balls
+        this.balls = state.balls.map((b: any) => ({
+            ...b,
+            vx: 0, vy: 0, vz: 0 
+        }));
+        // Sync shared state for React
+        physicsState.player = state.player;
+        physicsState.bot = state.bot;
+        physicsState.balls = state.balls;
+        // Merge events
+        if (state.events && state.events.length > 0) {
+            const lastId = physicsState.events[physicsState.events.length - 1]?.id;
+            const newEvents = state.events.filter((e: any) => e.id !== lastId); 
+            physicsState.events = [...physicsState.events, ...newEvents].slice(-20);
         }
     }
   }

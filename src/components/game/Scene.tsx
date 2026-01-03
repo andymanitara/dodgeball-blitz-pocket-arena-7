@@ -29,18 +29,14 @@ function PhysicsLoop() {
 }
 function CameraRig() {
     const { camera, size } = useThree();
-    const role = useMultiplayerStore(s => s.role);
-    // Host/Single: [0, 14, 10] (Looking at +Z)
-    // Client: [0, 14, -10] (Looking at -Z, rotated 180)
-    const defaultZ = role === 'client' ? -10 : 10;
+    // Fixed Camera Position: Always at +10 Z
+    // Since physicsEngine inverts the world for the Client, the Client (now at +6) 
+    // will be correctly positioned at the bottom of the screen relative to this camera.
+    const defaultZ = 10;
     const basePos = useRef(new THREE.Vector3(0, 14, defaultZ));
     const shakeIntensity = useGameStore(s => s.shakeIntensity);
     const decayShake = useGameStore(s => s.decayShake);
     const isPaused = useGameStore(s => s.isPaused);
-    // Update base position when role changes
-    useEffect(() => {
-        basePos.current.set(0, 14, role === 'client' ? -10 : 10);
-    }, [role]);
     // Responsive Camera Logic
     useLayoutEffect(() => {
         const aspect = size.width / size.height;
@@ -53,15 +49,14 @@ function CameraRig() {
         const defaultVector = new THREE.Vector3(0, 14, 10);
         const defaultDist = defaultVector.length();
         const finalDist = Math.max(defaultDist, requiredDist);
-        // Direction depends on role
-        const zDir = role === 'client' ? -1 : 1;
-        const direction = new THREE.Vector3(0, 14, 10 * zDir).normalize();
+        // Always look from +Z
+        const direction = new THREE.Vector3(0, 14, 10).normalize();
         const newPos = direction.multiplyScalar(finalDist);
         basePos.current.copy(newPos);
         // Immediate update
         camera.position.copy(newPos);
         camera.lookAt(0, 0, 0);
-    }, [size.width, size.height, camera, role]);
+    }, [size.width, size.height, camera]);
     useFrame(() => {
         if (isPaused) return;
         if (shakeIntensity > 0) {
@@ -100,10 +95,10 @@ export function Scene() {
       <PhysicsLoop />
       <CameraRig />
       <ambientLight intensity={0.6} />
-      <directionalLight
-        position={[5, 10, 5]}
-        intensity={1.2}
-        castShadow
+      <directionalLight 
+        position={[5, 10, 5]} 
+        intensity={1.2} 
+        castShadow 
         shadow-mapSize={[1024, 1024]}
         shadow-bias={-0.001}
       >
