@@ -1,8 +1,54 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Sphere, Trail, Torus } from '@react-three/drei';
+import { Sphere, Trail, Box } from '@react-three/drei';
 import { physicsState } from '@/store/useGameStore';
 import * as THREE from 'three';
+const Hair = ({ style }: { style: number }) => {
+    const color = useMemo(() => {
+        const colors = ['#000000', '#3f2a14', '#5e3a18', '#8b4513', '#d2691e'];
+        return colors[Math.floor(Math.random() * colors.length)];
+    }, []);
+    switch (style) {
+        case 0: // Spiky / Mohawk-ish
+            return (
+                <group position={[0, 0.2, 0]}>
+                    <Box args={[0.1, 0.15, 0.3]} position={[0, 0, 0]}>
+                        <meshStandardMaterial color={color} />
+                    </Box>
+                    <Box args={[0.1, 0.12, 0.25]} position={[0, 0.05, 0]} rotation={[0.2, 0, 0]}>
+                        <meshStandardMaterial color={color} />
+                    </Box>
+                </group>
+            );
+        case 1: // Afro / Puffs
+            return (
+                <group position={[0, 0.15, 0]}>
+                    <Sphere args={[0.22, 16, 16]} position={[0, 0, 0]}>
+                        <meshStandardMaterial color={color} />
+                    </Sphere>
+                    <Sphere args={[0.15, 16, 16]} position={[-0.15, -0.05, 0]}>
+                        <meshStandardMaterial color={color} />
+                    </Sphere>
+                    <Sphere args={[0.15, 16, 16]} position={[0.15, -0.05, 0]}>
+                        <meshStandardMaterial color={color} />
+                    </Sphere>
+                </group>
+            );
+        case 2: // Messy Top / Bun
+            return (
+                <group position={[0, 0.18, 0]}>
+                    <Box args={[0.38, 0.1, 0.38]} position={[0, -0.05, 0]}>
+                        <meshStandardMaterial color={color} />
+                    </Box>
+                    <Sphere args={[0.15, 16, 16]} position={[0, 0.05, -0.05]}>
+                        <meshStandardMaterial color={color} />
+                    </Sphere>
+                </group>
+            );
+        default:
+            return null;
+    }
+};
 const CharacterModel = ({ entity, color, type }: { entity: any, color: string, type: 'player' | 'bot' }) => {
   const group = useRef<THREE.Group>(null);
   const bodyGroup = useRef<THREE.Group>(null);
@@ -10,6 +56,8 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
   const rightArm = useRef<THREE.Mesh>(null);
   const leftLegGroup = useRef<THREE.Group>(null);
   const rightLegGroup = useRef<THREE.Group>(null);
+  // Randomize hair style on mount
+  const hairStyle = useMemo(() => Math.floor(Math.random() * 3), []);
   // Define colors
   const skinColor = '#ffdbac';
   const shortsColor = type === 'player' ? '#f8fafc' : '#1e293b'; // White for player, Dark for bot
@@ -78,9 +126,6 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
             mat.emissive.setScalar(flash);
             if (flash > 0.5) {
                 mat.color.setHex(0xffffff);
-            } else {
-                // Reset colors roughly (this is a simplification, ideally we store original colors)
-                // Since we recreate materials on color change, we can just let the else block handle it next frame
             }
         });
     } else {
@@ -109,6 +154,8 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
                 <mesh castShadow receiveShadow material={materials.skin}>
                     <boxGeometry args={[0.35, 0.35, 0.35]} />
                 </mesh>
+                {/* Hair */}
+                <Hair style={hairStyle} />
                 {/* Headband */}
                 <mesh position={[0, 0.1, 0]} castShadow material={materials.headband}>
                      <boxGeometry args={[0.36, 0.08, 0.36]} />
@@ -217,10 +264,12 @@ const Ball = ({ id }: { id: number }) => {
          attenuation={(t) => t * t}
        >
          <Sphere ref={meshRef} args={[0.3, 32, 32]} castShadow>
-           <meshStandardMaterial 
-             color="#dc2626" 
-             roughness={0.4} 
+           <meshPhysicalMaterial
+             color="#dc2626"
+             roughness={0.7}
              metalness={0.1}
+             clearcoat={0.1}
+             clearcoatRoughness={0.5}
            />
          </Sphere>
        </Trail>

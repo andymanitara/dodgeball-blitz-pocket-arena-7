@@ -1,13 +1,33 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { gameInput } from '@/store/useGameStore';
+import { gameInput, physicsState } from '@/store/useGameStore';
 import { cn } from '@/lib/utils';
+import { DODGE_COOLDOWN } from '@/lib/constants';
 export function TouchControls() {
   const joystickRef = useRef<HTMLDivElement>(null);
   const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 });
   const [isActive, setIsActive] = useState(false);
+  const [cooldownPct, setCooldownPct] = useState(0);
   // Refs for tracking input state without re-renders
   const joystickTouchId = useRef<number | null>(null);
   const isMouseDragging = useRef(false);
+  // Cooldown Polling Loop
+  useEffect(() => {
+    let frameId: number;
+    const loop = () => {
+      // Read directly from mutable physics state
+      const currentCooldown = physicsState.player?.cooldown || 0;
+      const pct = Math.max(0, Math.min(1, currentCooldown / DODGE_COOLDOWN));
+      // Only update state if changed significantly to avoid excessive re-renders
+      setCooldownPct(prev => {
+        if (Math.abs(prev - pct) > 0.01) return pct;
+        if (prev > 0 && pct === 0) return 0; // Ensure we hit exactly 0
+        return prev;
+      });
+      frameId = requestAnimationFrame(loop);
+    };
+    frameId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frameId);
+  }, []);
   // Helper to calculate and update joystick position
   const updateJoystick = useCallback((clientX: number, clientY: number) => {
     if (!joystickRef.current) return;
@@ -100,7 +120,11 @@ export function TouchControls() {
     };
   }, [updateJoystick, resetJoystick]);
   // --- Button Handlers (Mouse + Touch) ---
-  const setDodge = (active: boolean) => { gameInput.isDodging = active; };
+  const setDodge = (active: boolean) => { 
+    if (cooldownPct <= 0) {
+        gameInput.isDodging = active; 
+    }
+  };
   const setThrow = (active: boolean) => { gameInput.isThrowing = active; };
   return (
     <div className="absolute inset-0 pointer-events-none flex flex-col justify-end pb-[calc(2rem+env(safe-area-inset-bottom))] px-4 select-none z-50">
@@ -132,16 +156,31 @@ export function TouchControls() {
         {/* Action Buttons */}
         <div className="flex gap-4 pointer-events-auto pb-2">
           {/* Dodge Button */}
-          <button
-            className="w-20 h-20 rounded-full bg-yellow-500 border-b-4 border-yellow-700 shadow-lg active:scale-95 active:border-b-0 active:translate-y-1 flex items-center justify-center font-bold text-white text-sm touch-none transition-all select-none"
-            onTouchStart={(e) => { if(e.cancelable) e.preventDefault(); setDodge(true); }}
-            onTouchEnd={(e) => { if(e.cancelable) e.preventDefault(); setDodge(false); }}
-            onMouseDown={() => setDodge(true)}
-            onMouseUp={() => setDodge(false)}
-            onMouseLeave={() => setDodge(false)}
-          >
-            DODGE
-          </button>
+          <div className="relative">
+            <button
+                disabled={cooldownPct > 0}
+                className={cn(
+                    "w-20 h-20 rounded-full border-b-4 shadow-lg flex items-center justify-center font-bold text-white text-sm touch-none transition-all select-none overflow-hidden relative",
+                    cooldownPct > 0 
+                        ? "bg-yellow-600 border-yellow-800 opacity-80 cursor-not-allowed" 
+                        : "bg-yellow-500 border-yellow-700 active:scale-95 active:border-b-0 active:translate-y-1"
+                )}
+                onTouchStart={(e) => { if(e.cancelable) e.preventDefault(); setDodge(true); }}
+                onTouchEnd={(e) => { if(e.cancelable) e.preventDefault(); setDodge(false); }}
+                onMouseDown={() => setDodge(true)}
+                onMouseUp={() => setDodge(false)}
+                onMouseLeave={() => setDodge(false)}
+            >
+                <span className="z-10 relative">DODGE</span>
+                {/* Cooldown Overlay */}
+                {cooldownPct > 0 && (
+                    <div 
+                        className="absolute bottom-0 left-0 right-0 bg-black/40 z-0 transition-all duration-75 ease-linear"
+                        style={{ height: `${cooldownPct * 100}%` }}
+                    />
+                )}
+            </button>
+          </div>
           {/* Throw Button */}
           <button
             className="w-24 h-24 rounded-full bg-red-500 border-b-4 border-red-700 shadow-lg active:scale-95 active:border-b-0 active:translate-y-1 flex items-center justify-center font-bold text-white text-lg touch-none transition-all select-none"

@@ -1,10 +1,17 @@
 import { gameInput, physicsState, useGameStore } from '@/store/useGameStore';
 import { audioController } from '@/lib/audioController';
-import { COURT_WIDTH, COURT_LENGTH, PLAYER_RADIUS, BALL_RADIUS } from '@/lib/constants';
+import { 
+  COURT_WIDTH, 
+  COURT_LENGTH, 
+  PLAYER_RADIUS, 
+  BALL_RADIUS,
+  DODGE_COOLDOWN,
+  DODGE_SPEED,
+  DODGE_DURATION
+} from '@/lib/constants';
 // Constants
 const PLAYER_SPEED = 8;
 const BOT_SPEED = 5;
-const DODGE_SPEED = 12;
 const FRICTION = 0.92;
 const GRAVITY = 25;
 const THROW_FORCE = 20;
@@ -129,7 +136,7 @@ class PhysicsEngine {
     if (this.player.cooldown > 0) this.player.cooldown -= dt;
     if (this.player.invulnerable > 0) this.player.invulnerable -= dt;
     // Movement
-    if (this.player.cooldown <= 0.7) { // Can move if not mid-dodge
+    if (this.player.cooldown <= (DODGE_COOLDOWN - DODGE_DURATION)) { // Can move if not mid-dodge
         this.player.vx = joystick.x * PLAYER_SPEED;
         this.player.vz = joystick.y * PLAYER_SPEED;
     }
@@ -146,8 +153,8 @@ class PhysicsEngine {
         const len = Math.sqrt(dx*dx + dz*dz);
         this.player.vx = (dx / len) * DODGE_SPEED;
         this.player.vz = (dz / len) * DODGE_SPEED;
-        this.player.cooldown = 1.0;
-        this.player.invulnerable = 0.35;
+        this.player.cooldown = DODGE_COOLDOWN;
+        this.player.invulnerable = 0.35; // Invulnerability window
         gameInput.isDodging = false;
     }
     // Throw
@@ -189,7 +196,7 @@ class PhysicsEngine {
         const dodgeDir = incomingBall.x > this.bot.x ? -1 : 1;
         this.bot.vx = dodgeDir * DODGE_SPEED;
         this.bot.vz = 0;
-        this.bot.cooldown = 1.0;
+        this.bot.cooldown = DODGE_COOLDOWN;
         this.bot.invulnerable = 0.35;
     }
     // State Machine
@@ -448,11 +455,9 @@ class PhysicsEngine {
     useGameStore.getState().addShake(0.8);
     audioController.play('hit');
     this.addEvent('hit', x, z, victim === 'player' ? "OOF!" : "BONK!");
-    // Slow Motion Effect
-    useGameStore.getState().setTimeScale(0.2);
-    setTimeout(() => {
-        useGameStore.getState().setTimeScale(1.0);
-    }, 500);
+    // Check for Killing Blow
+    const currentLives = victim === 'player' ? useGameStore.getState().playerLives : useGameStore.getState().botLives;
+    const isKillingBlow = currentLives <= 1;
     // Logic
     if (victim === 'player') {
         useGameStore.getState().decrementPlayerLives();
@@ -466,16 +471,29 @@ class PhysicsEngine {
         this.bot.stunTimer = 1.5;
         this.bot.invulnerable = 2.0;
     }
-    // Round End Check
-    const { playerLives, botLives } = useGameStore.getState();
-    if (playerLives <= 0) {
-        useGameStore.getState().winRound('bot');
-        audioController.play('lose');
-        this.resetPositions();
-    } else if (botLives <= 0) {
-        useGameStore.getState().winRound('player');
-        audioController.play('win');
-        this.resetPositions();
+    if (isKillingBlow) {
+        // Cinematic Death: Super slow motion for 3.5s
+        useGameStore.getState().setTimeScale(0.1);
+        setTimeout(() => {
+            useGameStore.getState().setTimeScale(1.0);
+            // Round End Check
+            const { playerLives, botLives } = useGameStore.getState();
+            if (playerLives <= 0) {
+                useGameStore.getState().winRound('bot');
+                audioController.play('lose');
+                this.resetPositions();
+            } else if (botLives <= 0) {
+                useGameStore.getState().winRound('player');
+                audioController.play('win');
+                this.resetPositions();
+            }
+        }, 3500);
+    } else {
+        // Standard Hit: Brief slow motion
+        useGameStore.getState().setTimeScale(0.2);
+        setTimeout(() => {
+            useGameStore.getState().setTimeScale(1.0);
+        }, 500);
     }
   }
   addEvent(type: 'hit' | 'catch' | 'throw' | 'pickup', x: number, z: number, text?: string) {
@@ -495,6 +513,7 @@ class PhysicsEngine {
   syncState() {
     physicsState.player.x = this.player.x;
     physicsState.player.z = this.player.z;
+    physicsState.player.cooldown = this.player.cooldown; // Sync cooldown for UI
     // Visual isHit logic:
     // Character stays on floor (isHit=true) while stunTimer > 0.3
     // Character stands up (isHit=false) during last 0.3s of stun
