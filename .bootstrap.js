@@ -77,7 +77,12 @@ function updateWranglerJsonc() {
 }
 
 function runSetupCommands() {
-    const commands = [];
+    const commands = [
+    "bun add three@^0.160.0",
+    "bun add @types/three@^0.160.0",
+    "bun add @react-three/fiber@^8.15.0",
+    "bun add @react-three/drei@^9.100.0"
+];
     
     if (commands.length === 0) {
         console.log('⊘ No setup commands to run');
