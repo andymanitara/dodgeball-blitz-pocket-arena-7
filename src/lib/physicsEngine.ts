@@ -241,9 +241,9 @@ class PhysicsEngine {
     if (this.bot.invulnerable > 0) this.bot.invulnerable -= dt;
     // 1. Check for Dodge Opportunity (Highest Priority)
     // Look for incoming LETHAL balls
-    const incomingBall = this.balls.find(b =>
-        b.state === 'flying' &&
-        b.owner === 'player' &&
+    const incomingBall = this.balls.find(b => 
+        b.state === 'flying' && 
+        b.owner === 'player' && 
         b.isLethal && // Only dodge lethal balls
         b.z < 0 && // In bot's half
         b.vz < 0 && // Moving towards bot
@@ -416,7 +416,7 @@ class PhysicsEngine {
   }
   tryPickup(entity: Entity, type: 'player' | 'bot') {
     const pickupRange = 1.5;
-    const ball = this.balls.find(b =>
+    const ball = this.balls.find(b => 
         // Can pick up if idle OR (flying but not lethal)
         (b.state === 'idle' || (b.state === 'flying' && !b.isLethal)) &&
         Math.abs(b.x - entity.x) < pickupRange &&
@@ -538,7 +538,7 @@ class PhysicsEngine {
     // Logic
     if (victim === 'player') {
         useGameStore.getState().decrementPlayerLives();
-        // STUN MECHANIC:
+        // STUN MECHANIC: 
         // 1.5s immobilized
         // 2.0s invulnerable (gives 0.5s grace after standing up)
         this.player.stunTimer = 1.5;
@@ -613,7 +613,7 @@ class PhysicsEngine {
   }
   // Client-side state injection
   injectState(state: any) {
-    if (!state) return;
+    if (!state || !state.player || !state.bot) return;
     if (this.mode === 'client') {
         // --- PERSPECTIVE SWAPPING & INVERSION ---
         // The Client controls the "Bot" entity on the Host.
@@ -658,16 +658,14 @@ class PhysicsEngine {
                  physicsState.events = [...physicsState.events, ...newEvents].slice(-20);
             }
         }
-        // 5. Update Shared State
+        // 5. Update Shared State (Mutate in place)
         // We manually update physicsState to reflect the swapped/inverted entities
-        // Added rotation: 0 to satisfy type requirements
         physicsState.player.x = this.player.x;
         physicsState.player.z = this.player.z;
         physicsState.player.cooldown = this.player.cooldown;
         physicsState.player.holdingBallId = this.player.holdingBallId;
         physicsState.player.isHit = state.bot.isHit;
         physicsState.player.rotation = 0;
-
         physicsState.bot.x = this.bot.x;
         physicsState.bot.z = this.bot.z;
         physicsState.bot.cooldown = this.bot.cooldown;
@@ -723,10 +721,9 @@ class PhysicsEngine {
             ...b,
             vx: 0, vy: 0, vz: 0
         }));
-        // Sync shared state for React
-        // Added rotation: 0 to satisfy type requirements
-        physicsState.player = { ...state.player, rotation: 0 };
-        physicsState.bot = { ...state.bot, rotation: 0 };
+        // Sync shared state for React - USE OBJECT.ASSIGN TO MUTATE IN PLACE
+        Object.assign(physicsState.player, state.player);
+        Object.assign(physicsState.bot, state.bot);
         physicsState.balls = state.balls;
         // Merge events
         if (state.events && state.events.length > 0) {
