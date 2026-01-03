@@ -82,7 +82,8 @@ export function MultiplayerMenu({ onClose }: MultiplayerMenuProps) {
   const isConnecting = !peerId && status !== 'error';
   const isConnectionError = status === 'error';
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    // Added pointer-events-auto to ensure clicks are captured
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 pointer-events-auto">
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}

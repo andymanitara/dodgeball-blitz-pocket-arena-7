@@ -8,7 +8,8 @@ interface HowToPlayModalProps {
 }
 export function HowToPlayModal({ onClose }: HowToPlayModalProps) {
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    // Added pointer-events-auto to ensure clicks are captured
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pointer-events-auto">
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
