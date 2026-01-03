@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { audioController } from '@/lib/audioController';
 export function GameHUD() {
   const playerLives = useGameStore(s => s.playerLives);
   const botLives = useGameStore(s => s.botLives);
@@ -10,7 +11,11 @@ export function GameHUD() {
   const botScore = useGameStore(s => s.botScore);
   const currentRound = useGameStore(s => s.currentRound);
   const phase = useGameStore(s => s.phase);
+  const countdown = useGameStore(s => s.countdown);
+  const setCountdown = useGameStore(s => s.setCountdown);
   const [showRoundStart, setShowRoundStart] = useState(false);
+  const [showGo, setShowGo] = useState(false);
+  const prevCountdown = useRef(countdown);
   useEffect(() => {
     if (phase === 'playing') {
         setShowRoundStart(true);
@@ -18,6 +23,24 @@ export function GameHUD() {
         return () => clearTimeout(timer);
     }
   }, [phase, currentRound]);
+  // Countdown Logic
+  useEffect(() => {
+    if (countdown > 0) {
+        audioController.play('beep');
+        const timer = setTimeout(() => {
+            setCountdown(countdown - 1);
+        }, 1000);
+        return () => clearTimeout(timer);
+    }
+    // Detect transition from 1 to 0 to show "GO!"
+    if (prevCountdown.current === 1 && countdown === 0) {
+        setShowGo(true);
+        audioController.play('throw'); // Whistle sound
+        const timer = setTimeout(() => setShowGo(false), 1000);
+        return () => clearTimeout(timer);
+    }
+    prevCountdown.current = countdown;
+  }, [countdown, setCountdown]);
   return (
     <div className="absolute inset-0 pointer-events-none px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] flex flex-col justify-between overflow-hidden">
       {/* Top Bar */}
@@ -74,10 +97,39 @@ export function GameHUD() {
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 1.5, opacity: 0 }}
-                className="absolute inset-0 flex items-center justify-center z-50"
+                className="absolute inset-0 flex items-center justify-center z-40"
             >
                 <h2 className="text-6xl md:text-8xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.5)] stroke-black tracking-tighter italic">
                     ROUND {currentRound}
+                </h2>
+            </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Countdown Overlay */}
+      <AnimatePresence>
+        {countdown > 0 && (
+            <motion.div
+                key={countdown}
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1.5, opacity: 1 }}
+                exit={{ scale: 2, opacity: 0 }}
+                transition={{ duration: 0.5 }}
+                className="absolute inset-0 flex items-center justify-center z-50"
+            >
+                <h2 className="text-9xl font-black text-yellow-400 drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)] stroke-black tracking-tighter">
+                    {countdown}
+                </h2>
+            </motion.div>
+        )}
+        {showGo && (
+            <motion.div
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1.5, opacity: 1 }}
+                exit={{ scale: 2, opacity: 0 }}
+                className="absolute inset-0 flex items-center justify-center z-50"
+            >
+                <h2 className="text-9xl font-black text-green-400 drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)] stroke-black tracking-tighter">
+                    GO!
                 </h2>
             </motion.div>
         )}

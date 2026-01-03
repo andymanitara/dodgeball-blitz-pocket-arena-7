@@ -21,7 +21,7 @@ class AudioController {
       console.warn('AudioContext not supported', e);
     }
   }
-  play(type: 'throw' | 'hit' | 'pickup' | 'win' | 'lose') {
+  play(type: 'throw' | 'hit' | 'pickup' | 'win' | 'lose' | 'beep') {
     const { settings } = useGameStore.getState();
     if (!settings.sound || !this.ctx) return;
     if (this.ctx.state === 'suspended') {
@@ -80,6 +80,16 @@ class AudioController {
           gain.gain.linearRampToValueAtTime(0.01, t + 0.5);
           osc.start(t);
           osc.stop(t + 0.5);
+          break;
+        case 'beep':
+          // Short high beep for countdown
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, t);
+          osc.frequency.exponentialRampToValueAtTime(400, t + 0.1);
+          gain.gain.setValueAtTime(0.3, t);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+          osc.start(t);
+          osc.stop(t + 0.1);
           break;
       }
     } catch (e) {

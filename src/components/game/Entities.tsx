@@ -57,9 +57,13 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
         if(rightLeg.current) rightLeg.current.rotation.x = THREE.MathUtils.lerp(rightLeg.current.rotation.x, 0, damp);
     }
     // 5. Stumble / Hit Reaction
-    // Tilt body backward when hit
-    const targetRotX = entity.isHit ? (type === 'player' ? Math.PI/4 : -Math.PI/4) : 0;
+    // Fall to floor (90 deg backwards) when hit
+    // Both characters fall "backwards" relative to their facing direction
+    const isHit = entity.isHit;
+    const targetRotX = isHit ? -Math.PI / 2 : 0;
+    const targetPosY = isHit ? 0.2 : 0.75; // Drop to floor
     bodyGroup.current.rotation.x = THREE.MathUtils.lerp(bodyGroup.current.rotation.x, targetRotX, 0.1);
+    bodyGroup.current.position.y = THREE.MathUtils.lerp(bodyGroup.current.position.y, targetPosY, 0.1);
     // 6. Hit Flash Effect
     if (entity.isHit) {
         const flash = Math.sin(state.clock.elapsedTime * 20) > 0 ? 1 : 0;
@@ -164,8 +168,6 @@ const Ball = ({ id }: { id: number }) => {
 };
 export function Entities() {
   // We assume balls are static in count for this MVP (pool of 5)
-  // If ball count changes dynamically, we'd need to subscribe to that change.
-  // For now, we map the initial state which is populated by physicsEngine.
   return (
     <group>
       <CharacterModel

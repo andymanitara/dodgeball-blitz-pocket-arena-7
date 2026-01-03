@@ -4,7 +4,7 @@ import { COURT_WIDTH, COURT_LENGTH, PLAYER_RADIUS, BALL_RADIUS } from '@/lib/con
 // Constants
 const PLAYER_SPEED = 8;
 const BOT_SPEED = 5;
-const DODGE_SPEED = 18;
+const DODGE_SPEED = 12; // Reduced from 18 to prevent overshooting
 const FRICTION = 0.92;
 const GRAVITY = 25;
 const THROW_FORCE = 20;
@@ -61,18 +61,29 @@ class PhysicsEngine {
     };
   }
   resetBalls() {
-    // Spawn balls exactly at the center line (z=0) for fairness
-    this.balls = Array.from({ length: 5 }).map((_, i) => ({
-      id: i,
-      x: (Math.random() * 6) - 3,
-      y: BALL_RADIUS,
-      z: 0,
-      vx: 0, vy: 0, vz: 0,
-      state: 'idle',
-      owner: null,
-      grounded: true,
-      isLethal: false
-    }));
+    // Spawn balls at specific locations requiring pickup
+    this.balls = Array.from({ length: 5 }).map((_, i) => {
+        let x = 0, z = 0;
+        if (i === 0) { x = 0; z = 4; } // Near Player (Player at 6)
+        else if (i === 1) { x = 0; z = -4; } // Near Bot (Bot at -6)
+        else {
+            // Distribute remaining 3 on center line
+            // i=2 -> -2, i=3 -> 0, i=4 -> 2
+            x = (i - 3) * 2;
+            z = 0;
+        }
+        return {
+            id: i,
+            x,
+            y: BALL_RADIUS,
+            z,
+            vx: 0, vy: 0, vz: 0,
+            state: 'idle',
+            owner: null,
+            grounded: true,
+            isLethal: false
+        };
+    });
   }
   resetPositions() {
     this.player = this.createEntity(0, 6);
@@ -85,6 +96,8 @@ class PhysicsEngine {
     this.syncState();
   }
   update(dt: number) {
+    // Pause physics during countdown
+    if (useGameStore.getState().countdown > 0) return;
     // 1. Player Movement
     this.handlePlayerInput(dt);
     // 2. Bot Logic (State Machine)

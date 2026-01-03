@@ -10,6 +10,7 @@ export interface GameState {
   shakeIntensity: number;
   currentRound: number;
   timeScale: number;
+  countdown: number; // New countdown state
   settings: {
     sound: boolean;
     music: boolean;
@@ -27,6 +28,7 @@ export interface GameState {
   decayShake: () => void;
   toggleSetting: (setting: keyof GameState['settings']) => void;
   setTimeScale: (scale: number) => void;
+  setCountdown: (val: number) => void; // New action
 }
 // Mutable input state for high-frequency updates without re-renders
 export const gameInput = {
@@ -46,11 +48,11 @@ export interface GameEvent {
 export const physicsState = {
   player: { x: 0, z: 6, rotation: 0, isHit: false },
   bot: { x: 0, z: -6, rotation: 0, isHit: false },
-  balls: [] as Array<{ 
-    id: number; 
-    x: number; 
-    y: number; 
-    z: number; 
+  balls: [] as Array<{
+    id: number;
+    x: number;
+    y: number;
+    z: number;
     state: 'idle' | 'held' | 'flying';
     owner: 'player' | 'bot' | null;
     isLethal: boolean;
@@ -67,6 +69,7 @@ export const useGameStore = create<GameState>((set) => ({
   shakeIntensity: 0,
   currentRound: 1,
   timeScale: 1.0,
+  countdown: 0,
   settings: {
     sound: true,
     music: true,
@@ -83,6 +86,7 @@ export const useGameStore = create<GameState>((set) => ({
     winner: null,
     shakeIntensity: 0,
     timeScale: 1.0,
+    countdown: 3, // Start countdown
   }),
   startNextRound: () => set((state) => ({
     phase: 'playing',
@@ -91,6 +95,7 @@ export const useGameStore = create<GameState>((set) => ({
     currentRound: state.currentRound + 1,
     shakeIntensity: 0,
     timeScale: 1.0,
+    countdown: 3, // Start countdown
   })),
   resetMatch: () => set({
     phase: 'menu',
@@ -102,6 +107,7 @@ export const useGameStore = create<GameState>((set) => ({
     currentRound: 1,
     shakeIntensity: 0,
     timeScale: 1.0,
+    countdown: 0,
   }),
   decrementPlayerLives: () => set((state) => {
     const newLives = Math.max(0, state.playerLives - 1);
@@ -141,4 +147,5 @@ export const useGameStore = create<GameState>((set) => ({
     }
   })),
   setTimeScale: (scale) => set({ timeScale: scale }),
+  setCountdown: (val) => set({ countdown: val }),
 }));
