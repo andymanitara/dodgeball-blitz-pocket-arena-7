@@ -74,7 +74,18 @@ export function MultiplayerManager() {
   useEffect(() => {
     const peer = new Peer();
     peerRef.current = peer;
+    // Connection Timeout Logic
+    const connectionTimeout = setTimeout(() => {
+        if (!peer.open) {
+            console.error('PeerJS connection timed out');
+            const errorMsg = 'Connection to matchmaking server timed out. Check your network/firewall.';
+            setError(errorMsg);
+            setStatus('error');
+            toast.error(errorMsg);
+        }
+    }, 15000); // 15 seconds timeout
     peer.on('open', (id) => {
+      clearTimeout(connectionTimeout); // Clear timeout on success
       console.log('My peer ID is: ' + id);
       setPeerId(id);
       setStatus('disconnected');
@@ -84,12 +95,15 @@ export function MultiplayerManager() {
       handleConnection(conn, 'host');
     });
     peer.on('error', (err) => {
+      clearTimeout(connectionTimeout);
       console.error('Peer error:', err);
       setError(err.message);
       setStatus('error');
       setIsQueuing(false);
+      toast.error(`Connection Error: ${err.message}`);
     });
     return () => {
+      clearTimeout(connectionTimeout);
       peer.destroy();
     };
   }, [setPeerId, setStatus, setError, handleConnection, setIsQueuing]);
@@ -163,8 +177,6 @@ export function MultiplayerManager() {
       if (pollInterval) clearInterval(pollInterval);
       if (timeoutTimer) clearTimeout(timeoutTimer);
       // Only leave queue if we are NOT connected (if connected, we matched, so don't leave)
-      // Actually, if we matched via API, we are removed by server.
-      // If we matched via incoming connection, we should ensure we are removed.
       if (!isQueuing && peerId) {
         leaveQueue();
       }
