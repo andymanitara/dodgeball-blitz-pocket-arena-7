@@ -1,20 +1,14 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, Instance, Instances } from '@react-three/drei';
+import { Text } from '@react-three/drei';
 import { physicsState } from '@/store/useGameStore';
 import * as THREE from 'three';
-// Simple particle system using Instances for performance
 function Particles({ events }: { events: any[] }) {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  // We'll just render a burst for the most recent hit
-  // For a robust system, we'd manage a pool of particles, but for MVP:
-  // Just show a few expanding spheres at the location of recent hits
   const recentHits = events.filter(e => e.type === 'hit' && Date.now() - e.time < 500);
   return (
     <group>
       {recentHits.map(hit => (
         <group key={hit.id} position={[hit.x, 1, hit.z]}>
-            {/* Simple explosion ring */}
             <mesh rotation={[-Math.PI/2, 0, 0]}>
                 <ringGeometry args={[0.5, 0.8, 16]} />
                 <meshBasicMaterial color="white" transparent opacity={0.8} />
@@ -25,6 +19,7 @@ function Particles({ events }: { events: any[] }) {
   );
 }
 function FloatingText({ x, z, text, time }: { x: number, z: number, text: string, time: number }) {
+    if (!text) return null;
     const age = Date.now() - time;
     if (age > 1000) return null;
     const progress = age / 1000;
@@ -51,11 +46,8 @@ function FloatingText({ x, z, text, time }: { x: number, z: number, text: string
 export function Effects() {
   const [events, setEvents] = React.useState<any[]>([]);
   useFrame(() => {
-    // Sync events from physics state
-    // Filter out old events to prevent memory leaks in React state
     const now = Date.now();
     const activeEvents = physicsState.events.filter(e => now - e.time < 1000);
-    // Only update if changed to avoid re-renders (simple length check for MVP)
     if (activeEvents.length !== events.length || (activeEvents.length > 0 && activeEvents[activeEvents.length-1].id !== events[events.length-1]?.id)) {
         setEvents([...activeEvents]);
     }

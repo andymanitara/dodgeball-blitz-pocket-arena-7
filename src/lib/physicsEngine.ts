@@ -62,6 +62,7 @@ class PhysicsEngine {
     };
   }
   resetBalls() {
+    // Spawn balls exactly at the center line (z=0) for fairness
     this.balls = Array.from({ length: 5 }).map((_, i) => ({
       id: i,
       x: (Math.random() * 6) - 3,
@@ -101,7 +102,7 @@ class PhysicsEngine {
     if (this.player.cooldown > 0) this.player.cooldown -= dt;
     if (this.player.invulnerable > 0) this.player.invulnerable -= dt;
     // Movement
-    if (this.player.cooldown <= 0.7) { // Can move if not mid-dodge (dodge lasts ~0.3s active, but has 1s cooldown)
+    if (this.player.cooldown <= 0.7) { // Can move if not mid-dodge
         this.player.vx = joystick.x * PLAYER_SPEED;
         this.player.vz = joystick.y * PLAYER_SPEED;
     }
@@ -118,7 +119,7 @@ class PhysicsEngine {
         const len = Math.sqrt(dx*dx + dz*dz);
         this.player.vx = (dx / len) * DODGE_SPEED;
         this.player.vz = (dz / len) * DODGE_SPEED;
-        this.player.cooldown = 1.0; 
+        this.player.cooldown = 1.0;
         this.player.invulnerable = 0.35;
         gameInput.isDodging = false;
     }
@@ -146,7 +147,8 @@ class PhysicsEngine {
         Math.abs(b.x - this.bot.x) < 2.0 && // Close in X
         Math.abs(b.z - this.bot.z) < 4.0 // Close in Z
     );
-    if (incomingBall && this.bot.cooldown <= 0 && Math.random() < 0.05) { // 5% chance per frame when threatened
+    // TUNING: Reduced dodge chance from 0.05 to 0.01 (1% per frame)
+    if (incomingBall && this.bot.cooldown <= 0 && Math.random() < 0.01) {
         this.botState = BotState.DODGING;
         this.botActionTimer = 0.3;
         // Dodge perpendicular to ball
@@ -170,7 +172,8 @@ class PhysicsEngine {
         case BotState.IDLE: {
             if (this.bot.holdingBallId !== null) {
                 this.botState = BotState.ATTACKING;
-                this.botActionTimer = 0.5 + Math.random() * 1.0; // Aim time
+                // TUNING: Increased aim time to 1.0-2.5s (was 0.5-1.5s)
+                this.botActionTimer = 1.0 + Math.random() * 1.5;
             } else {
                 this.botState = BotState.SEEKING;
             }
@@ -179,7 +182,8 @@ class PhysicsEngine {
         case BotState.SEEKING: {
             if (this.bot.holdingBallId !== null) {
                 this.botState = BotState.ATTACKING;
-                this.botActionTimer = 0.5 + Math.random() * 1.0;
+                // TUNING: Increased aim time
+                this.botActionTimer = 1.0 + Math.random() * 1.5;
                 break;
             }
             // Find nearest idle ball
@@ -342,8 +346,8 @@ class PhysicsEngine {
         const len = Math.sqrt(dx*dx + dz*dz);
         dirX = dx / len;
         dirZ = dz / len;
-        // Inaccuracy
-        dirX += (Math.random() - 0.5) * 0.2;
+        // TUNING: Increased inaccuracy from 0.2 to 0.5
+        dirX += (Math.random() - 0.5) * 0.5;
     }
     // Normalize
     const len = Math.sqrt(dirX*dirX + dirZ*dirZ);
@@ -381,7 +385,7 @@ class PhysicsEngine {
     const dx = ball.x - entity.x;
     const dz = ball.z - entity.z;
     const dist = Math.sqrt(dx*dx + dz*dz);
-    const dy = Math.abs(ball.y - 1.0); 
+    const dy = Math.abs(ball.y - 1.0);
     // More generous hit detection
     return dist < (entity.radius + BALL_RADIUS + 0.2) && dy < 1.2;
   }
