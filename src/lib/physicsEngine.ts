@@ -1,4 +1,5 @@
 import { gameInput, physicsState, useGameStore } from '@/store/useGameStore';
+import { audioController } from '@/lib/audioController';
 // Constants
 const COURT_WIDTH = 10;
 const COURT_LENGTH = 18; // -9 to 9
@@ -38,7 +39,7 @@ interface Ball {
   state: 'idle' | 'held' | 'flying';
   owner: 'player' | 'bot' | null;
   grounded: boolean;
-  isLethal: boolean; // New property: true if ball can deal damage
+  isLethal: boolean;
 }
 class PhysicsEngine {
   player: Entity;
@@ -319,7 +320,7 @@ class PhysicsEngine {
     const ball = this.balls.find(b => 
         // Can pick up if idle OR (flying but not lethal)
         (b.state === 'idle' || (b.state === 'flying' && !b.isLethal)) &&
-        Math.abs(b.x - entity.x) < pickupRange && 
+        Math.abs(b.x - entity.x) < pickupRange &&
         Math.abs(b.z - entity.z) < pickupRange
     );
     if (ball) {
@@ -328,8 +329,9 @@ class PhysicsEngine {
         ball.grounded = false;
         ball.isLethal = false; // Ensure it's not lethal when held
         entity.holdingBallId = ball.id;
-        // Event
+        // Event & Audio
         this.addEvent('pickup', entity.x, entity.z);
+        audioController.play('pickup');
     }
   }
   throwBall(entity: Entity, type: 'player' | 'bot') {
@@ -370,6 +372,7 @@ class PhysicsEngine {
     ball.isLethal = true; // Ball becomes lethal when thrown
     entity.holdingBallId = null;
     this.addEvent('throw', entity.x, entity.z);
+    audioController.play('throw');
   }
   handleCollisions() {
     this.balls.forEach(ball => {
@@ -411,9 +414,15 @@ class PhysicsEngine {
   onHit(victim: 'player' | 'bot') {
     const x = victim === 'player' ? this.player.x : this.bot.x;
     const z = victim === 'player' ? this.player.z : this.bot.z;
-    // Visuals
+    // Visuals & Audio
     useGameStore.getState().addShake(0.8);
+    audioController.play('hit');
     this.addEvent('hit', x, z, victim === 'player' ? "OOF!" : "BONK!");
+    // Slow Motion Effect
+    useGameStore.getState().setTimeScale(0.2);
+    setTimeout(() => {
+        useGameStore.getState().setTimeScale(1.0);
+    }, 500);
     // Logic
     if (victim === 'player') {
         useGameStore.getState().decrementPlayerLives();
@@ -426,9 +435,11 @@ class PhysicsEngine {
     const { playerLives, botLives } = useGameStore.getState();
     if (playerLives <= 0) {
         useGameStore.getState().winRound('bot');
+        audioController.play('lose');
         this.resetPositions();
     } else if (botLives <= 0) {
         useGameStore.getState().winRound('player');
+        audioController.play('win');
         this.resetPositions();
     }
   }
@@ -458,7 +469,9 @@ class PhysicsEngine {
         x: b.x,
         y: b.y,
         z: b.z,
-        state: b.state
+        state: b.state,
+        owner: b.owner,
+        isLethal: b.isLethal
     }));
   }
 }

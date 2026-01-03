@@ -1,6 +1,6 @@
-import React, { useRef, useMemo, useEffect } from 'react';
+import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Sphere } from '@react-three/drei';
+import { Sphere, Trail } from '@react-three/drei';
 import { physicsState } from '@/store/useGameStore';
 import * as THREE from 'three';
 const CharacterModel = ({ entity, color, type }: { entity: any, color: string, type: 'player' | 'bot' }) => {
@@ -128,20 +128,44 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
     </group>
   );
 };
-export function Entities() {
-  const ballRefs = useRef<Map<number, THREE.Mesh>>(new Map());
+const Ball = ({ id }: { id: number }) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const [visualState, setVisualState] = useState({ owner: null as any, isLethal: false });
   useFrame(() => {
-    physicsState.balls.forEach(ballData => {
-      const mesh = ballRefs.current.get(ballData.id);
-      if (mesh) {
-        mesh.position.set(ballData.x, ballData.y, ballData.z);
-        if (ballData.state === 'flying') {
-            mesh.rotation.x += 0.2;
-            mesh.rotation.z += 0.2;
-        }
+    const ballData = physicsState.balls.find(b => b.id === id);
+    if (ballData && meshRef.current) {
+      meshRef.current.position.set(ballData.x, ballData.y, ballData.z);
+      if (ballData.state === 'flying') {
+        meshRef.current.rotation.x += 0.2;
+        meshRef.current.rotation.z += 0.2;
       }
-    });
+      // Check for state changes to update Trail
+      if (ballData.owner !== visualState.owner || ballData.isLethal !== visualState.isLethal) {
+        setVisualState({ owner: ballData.owner, isLethal: ballData.isLethal });
+      }
+    }
   });
+  const trailColor = visualState.owner === 'player' ? '#3b82f6' : (visualState.owner === 'bot' ? '#ef4444' : '#eab308');
+  const showTrail = visualState.isLethal; // Only show trail if lethal
+  return (
+    <group>
+       <Trail
+         width={showTrail ? 0.4 : 0}
+         length={4}
+         color={trailColor}
+         attenuation={(t) => t * t}
+       >
+         <Sphere ref={meshRef} args={[0.3, 16, 16]} castShadow>
+           <meshStandardMaterial color="#eab308" roughness={0.4} />
+         </Sphere>
+       </Trail>
+    </group>
+  );
+};
+export function Entities() {
+  // We assume balls are static in count for this MVP (pool of 5)
+  // If ball count changes dynamically, we'd need to subscribe to that change.
+  // For now, we map the initial state which is populated by physicsEngine.
   return (
     <group>
       <CharacterModel
@@ -155,17 +179,7 @@ export function Entities() {
         type="bot"
       />
       {physicsState.balls.map((ball) => (
-        <Sphere
-          key={ball.id}
-          ref={(el) => {
-            if (el) ballRefs.current.set(ball.id, el);
-            else ballRefs.current.delete(ball.id);
-          }}
-          args={[0.3, 16, 16]}
-          castShadow
-        >
-          <meshStandardMaterial color="#eab308" roughness={0.4} />
-        </Sphere>
+        <Ball key={ball.id} id={ball.id} />
       ))}
     </group>
   );

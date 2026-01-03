@@ -9,9 +9,11 @@ import { useGameStore } from '@/store/useGameStore';
 import * as THREE from 'three';
 function PhysicsLoop() {
   const phase = useGameStore(s => s.phase);
+  const timeScale = useGameStore(s => s.timeScale);
   useFrame((state, delta) => {
     if (phase === 'playing') {
-      const dt = Math.min(delta, 0.1);
+      // Apply time scaling for slow-motion effects
+      const dt = Math.min(delta, 0.1) * timeScale;
       physicsEngine.update(dt);
     }
   });

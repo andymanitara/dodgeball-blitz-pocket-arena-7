@@ -9,6 +9,7 @@ export interface GameState {
   winner: 'player' | 'bot' | null;
   shakeIntensity: number;
   currentRound: number;
+  timeScale: number;
   settings: {
     sound: boolean;
     music: boolean;
@@ -25,6 +26,7 @@ export interface GameState {
   addShake: (amount: number) => void;
   decayShake: () => void;
   toggleSetting: (setting: keyof GameState['settings']) => void;
+  setTimeScale: (scale: number) => void;
 }
 // Mutable input state for high-frequency updates without re-renders
 export const gameInput = {
@@ -44,7 +46,15 @@ export interface GameEvent {
 export const physicsState = {
   player: { x: 0, z: 6, rotation: 0, isHit: false },
   bot: { x: 0, z: -6, rotation: 0, isHit: false },
-  balls: [] as Array<{ id: number; x: number; y: number; z: number; state: 'idle' | 'held' | 'flying' }>,
+  balls: [] as Array<{ 
+    id: number; 
+    x: number; 
+    y: number; 
+    z: number; 
+    state: 'idle' | 'held' | 'flying';
+    owner: 'player' | 'bot' | null;
+    isLethal: boolean;
+  }>,
   events: [] as GameEvent[],
 };
 export const useGameStore = create<GameState>((set) => ({
@@ -56,6 +66,7 @@ export const useGameStore = create<GameState>((set) => ({
   winner: null,
   shakeIntensity: 0,
   currentRound: 1,
+  timeScale: 1.0,
   settings: {
     sound: true,
     music: true,
@@ -71,6 +82,7 @@ export const useGameStore = create<GameState>((set) => ({
     currentRound: 1,
     winner: null,
     shakeIntensity: 0,
+    timeScale: 1.0,
   }),
   startNextRound: () => set((state) => ({
     phase: 'playing',
@@ -78,6 +90,7 @@ export const useGameStore = create<GameState>((set) => ({
     botLives: 3,
     currentRound: state.currentRound + 1,
     shakeIntensity: 0,
+    timeScale: 1.0,
   })),
   resetMatch: () => set({
     phase: 'menu',
@@ -88,6 +101,7 @@ export const useGameStore = create<GameState>((set) => ({
     winner: null,
     currentRound: 1,
     shakeIntensity: 0,
+    timeScale: 1.0,
   }),
   decrementPlayerLives: () => set((state) => {
     const newLives = Math.max(0, state.playerLives - 1);
@@ -109,6 +123,7 @@ export const useGameStore = create<GameState>((set) => ({
       botScore: newBotScore,
       phase: matchWinner ? 'match_over' : 'round_over',
       winner: matchWinner,
+      timeScale: 1.0,
     };
   }),
   addShake: (amount) => set((state) => ({
@@ -125,4 +140,5 @@ export const useGameStore = create<GameState>((set) => ({
       [setting]: !state.settings[setting]
     }
   })),
+  setTimeScale: (scale) => set({ timeScale: scale }),
 }));
