@@ -5,11 +5,18 @@ const COURT_LENGTH = 18; // -9 to 9
 const PLAYER_RADIUS = 0.5;
 const BALL_RADIUS = 0.3;
 const PLAYER_SPEED = 8;
+const BOT_SPEED = 5;
 const DODGE_SPEED = 18;
 const FRICTION = 0.92;
 const GRAVITY = 25;
 const THROW_FORCE = 20;
 const THROW_UP_FORCE = 6;
+enum BotState {
+  IDLE,
+  SEEKING,
+  ATTACKING,
+  DODGING
+}
 interface Entity {
   x: number;
   z: number;
@@ -36,6 +43,9 @@ class PhysicsEngine {
   player: Entity;
   bot: Entity;
   balls: Ball[];
+  botState: BotState = BotState.IDLE;
+  botTargetBallId: number | null = null;
+  botActionTimer: number = 0;
   constructor() {
     this.player = this.createEntity(0, 6);
     this.bot = this.createEntity(0, -6);
@@ -66,14 +76,17 @@ class PhysicsEngine {
   resetPositions() {
     this.player = this.createEntity(0, 6);
     this.bot = this.createEntity(0, -6);
+    this.botState = BotState.IDLE;
+    this.botTargetBallId = null;
+    this.botActionTimer = 0;
     this.resetBalls();
-    // Sync initial state
+    physicsState.events = []; // Clear events
     this.syncState();
   }
   update(dt: number) {
     // 1. Player Movement
     this.handlePlayerInput(dt);
-    // 2. Bot Logic (Simple Dummy for Phase 1)
+    // 2. Bot Logic (State Machine)
     this.handleBotLogic(dt);
     // 3. Physics Integration
     this.integratePhysics(dt);
@@ -88,24 +101,26 @@ class PhysicsEngine {
     if (this.player.cooldown > 0) this.player.cooldown -= dt;
     if (this.player.invulnerable > 0) this.player.invulnerable -= dt;
     // Movement
-    if (this.player.cooldown <= 0.7) { // Can move if not mid-dodge
+    if (this.player.cooldown <= 0.7) { // Can move if not mid-dodge (dodge lasts ~0.3s active, but has 1s cooldown)
         this.player.vx = joystick.x * PLAYER_SPEED;
-        this.player.vz = joystick.y * PLAYER_SPEED; // Joystick Y is inverted in UI usually, but we'll handle it there
+        this.player.vz = joystick.y * PLAYER_SPEED;
     }
     // Dodge
     if (isDodging && this.player.cooldown <= 0) {
         const dodgeDirX = joystick.x || 0;
         const dodgeDirZ = joystick.y || 0;
-        // Only dodge if moving
-        if (Math.abs(dodgeDirX) > 0.1 || Math.abs(dodgeDirZ) > 0.1) {
-            const len = Math.sqrt(dodgeDirX*dodgeDirX + dodgeDirZ*dodgeDirZ);
-            this.player.vx = (dodgeDirX / len) * DODGE_SPEED;
-            this.player.vz = (dodgeDirZ / len) * DODGE_SPEED;
-            this.player.cooldown = 1.0; // 1s cooldown
-            this.player.invulnerable = 0.3; // 0.3s invuln
-            // Reset input trigger
-            gameInput.isDodging = false;
+        // Only dodge if moving or default backward
+        let dx = dodgeDirX;
+        let dz = dodgeDirZ;
+        if (Math.abs(dx) < 0.1 && Math.abs(dz) < 0.1) {
+            dz = 1; // Dodge back
         }
+        const len = Math.sqrt(dx*dx + dz*dz);
+        this.player.vx = (dx / len) * DODGE_SPEED;
+        this.player.vz = (dz / len) * DODGE_SPEED;
+        this.player.cooldown = 1.0; 
+        this.player.invulnerable = 0.35;
+        gameInput.isDodging = false;
     }
     // Throw
     if (isThrowing && this.player.holdingBallId !== null) {
@@ -118,17 +133,103 @@ class PhysicsEngine {
     }
   }
   handleBotLogic(dt: number) {
-    // Simple dummy movement: slide left/right
-    const time = Date.now() / 1000;
-    this.bot.vx = Math.sin(time) * 3;
-    // Bot pickup
-    if (this.bot.holdingBallId === null) {
-        this.tryPickup(this.bot, 'bot');
-    } else {
-        // Random throw
-        if (Math.random() < 0.01) {
-            this.throwBall(this.bot, 'bot');
-        }
+    // Cooldowns
+    if (this.bot.cooldown > 0) this.bot.cooldown -= dt;
+    if (this.bot.invulnerable > 0) this.bot.invulnerable -= dt;
+    // 1. Check for Dodge Opportunity (Highest Priority)
+    // Look for incoming balls
+    const incomingBall = this.balls.find(b => 
+        b.state === 'flying' && 
+        b.owner === 'player' && 
+        b.z < 0 && // In bot's half
+        b.vz < 0 && // Moving towards bot
+        Math.abs(b.x - this.bot.x) < 2.0 && // Close in X
+        Math.abs(b.z - this.bot.z) < 4.0 // Close in Z
+    );
+    if (incomingBall && this.bot.cooldown <= 0 && Math.random() < 0.05) { // 5% chance per frame when threatened
+        this.botState = BotState.DODGING;
+        this.botActionTimer = 0.3;
+        // Dodge perpendicular to ball
+        const dodgeDir = incomingBall.x > this.bot.x ? -1 : 1;
+        this.bot.vx = dodgeDir * DODGE_SPEED;
+        this.bot.vz = 0;
+        this.bot.cooldown = 1.0;
+        this.bot.invulnerable = 0.35;
+    }
+    // State Machine
+    switch (this.botState) {
+        case BotState.DODGING:
+            this.botActionTimer -= dt;
+            if (this.botActionTimer <= 0) {
+                this.botState = BotState.IDLE;
+                this.bot.vx = 0;
+                this.bot.vz = 0;
+            }
+            break;
+        case BotState.IDLE:
+            if (this.bot.holdingBallId !== null) {
+                this.botState = BotState.ATTACKING;
+                this.botActionTimer = 0.5 + Math.random() * 1.0; // Aim time
+            } else {
+                this.botState = BotState.SEEKING;
+            }
+            break;
+        case BotState.SEEKING:
+            if (this.bot.holdingBallId !== null) {
+                this.botState = BotState.ATTACKING;
+                this.botActionTimer = 0.5 + Math.random() * 1.0;
+                break;
+            }
+            // Find nearest idle ball
+            let nearestDist = Infinity;
+            let targetBall: Ball | null = null;
+            this.balls.forEach(b => {
+                if (b.state === 'idle' && b.z < 2) { // Only seek balls in own half or near center
+                    const dist = Math.sqrt(Math.pow(b.x - this.bot.x, 2) + Math.pow(b.z - this.bot.z, 2));
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        targetBall = b;
+                    }
+                }
+            });
+            if (targetBall) {
+                const dx = targetBall.x - this.bot.x;
+                const dz = targetBall.z - this.bot.z;
+                const len = Math.sqrt(dx*dx + dz*dz);
+                if (len > 0.1) {
+                    this.bot.vx = (dx / len) * BOT_SPEED;
+                    this.bot.vz = (dz / len) * BOT_SPEED;
+                }
+                this.tryPickup(this.bot, 'bot');
+            } else {
+                // No balls? Move to center
+                const dx = 0 - this.bot.x;
+                const dz = -4 - this.bot.z;
+                const len = Math.sqrt(dx*dx + dz*dz);
+                if (len > 0.1) {
+                    this.bot.vx = (dx / len) * BOT_SPEED;
+                    this.bot.vz = (dz / len) * BOT_SPEED;
+                }
+            }
+            break;
+        case BotState.ATTACKING:
+            // Move towards throwing position (e.g., z = -3)
+            const targetZ = -3;
+            const dz = targetZ - this.bot.z;
+            if (Math.abs(dz) > 0.5) {
+                this.bot.vz = Math.sign(dz) * BOT_SPEED;
+                // Strafe a bit
+                this.bot.vx = Math.sin(Date.now() / 500) * 2;
+            } else {
+                this.bot.vz = 0;
+                this.bot.vx = 0;
+            }
+            this.botActionTimer -= dt;
+            if (this.botActionTimer <= 0) {
+                this.throwBall(this.bot, 'bot');
+                this.botState = BotState.IDLE;
+            }
+            break;
     }
   }
   integratePhysics(dt: number) {
@@ -148,10 +249,9 @@ class PhysicsEngine {
     this.balls.forEach(ball => {
         if (ball.state === 'held') {
             const holder = ball.owner === 'player' ? this.player : this.bot;
-            // Position ball in front of holder
             const offsetZ = ball.owner === 'player' ? -0.8 : 0.8;
             ball.x = holder.x;
-            ball.y = 1.0; // Held height
+            ball.y = 1.0;
             ball.z = holder.z + offsetZ;
             ball.vx = 0; ball.vy = 0; ball.vz = 0;
         } else {
@@ -169,10 +269,10 @@ class PhysicsEngine {
                 ball.vy = -ball.vy * 0.6; // Bounce dampening
                 ball.vx *= FRICTION;
                 ball.vz *= FRICTION;
-                if (Math.abs(ball.vy) < 1 && Math.abs(ball.vx) < 0.5 && Math.abs(ball.vz) < 0.5) {
+                if (Math.abs(ball.vy) < 2 && Math.abs(ball.vx) < 0.5 && Math.abs(ball.vz) < 0.5) {
                     ball.grounded = true;
                     ball.state = 'idle';
-                    ball.owner = null; // Reset ownership on stop
+                    ball.owner = null;
                 } else {
                     ball.grounded = false;
                 }
@@ -211,27 +311,35 @@ class PhysicsEngine {
         ball.owner = type;
         ball.grounded = false;
         entity.holdingBallId = ball.id;
+        // Event
+        this.addEvent('pickup', entity.x, entity.z);
     }
   }
   throwBall(entity: Entity, type: 'player' | 'bot') {
     if (entity.holdingBallId === null) return;
     const ball = this.balls.find(b => b.id === entity.holdingBallId);
     if (!ball) return;
-    // Throw direction
     let dirX = 0;
     let dirZ = 0;
     if (type === 'player') {
-        // Aim at bot (simple auto-aim for MVP) or straight forward
-        // For MVP: Throw straight forward with slight joystick influence
-        dirZ = -1;
-        dirX = gameInput.joystick.x * 0.5; 
+        // Auto-aim at bot with joystick influence
+        const dx = this.bot.x - this.player.x;
+        const dz = this.bot.z - this.player.z;
+        const len = Math.sqrt(dx*dx + dz*dz);
+        // Base aim
+        dirX = dx / len;
+        dirZ = dz / len;
+        // Joystick influence (bend the throw)
+        dirX += gameInput.joystick.x * 0.5;
     } else {
-        // Bot throws at player
+        // Bot throws at player with inaccuracy
         const dx = this.player.x - this.bot.x;
         const dz = this.player.z - this.bot.z;
         const len = Math.sqrt(dx*dx + dz*dz);
         dirX = dx / len;
         dirZ = dz / len;
+        // Inaccuracy
+        dirX += (Math.random() - 0.5) * 0.2;
     }
     // Normalize
     const len = Math.sqrt(dirX*dirX + dirZ*dirZ);
@@ -243,9 +351,9 @@ class PhysicsEngine {
     ball.vy = THROW_UP_FORCE;
     ball.grounded = false;
     entity.holdingBallId = null;
+    this.addEvent('throw', entity.x, entity.z);
   }
   handleCollisions() {
-    // Ball vs Player/Bot
     this.balls.forEach(ball => {
         if (ball.state === 'flying') {
             // Check Player Hit
@@ -266,28 +374,26 @@ class PhysicsEngine {
     });
   }
   checkSphereCapsule(ball: Ball, entity: Entity): boolean {
-    // Simple distance check for MVP (treating capsule as cylinder/sphere approx)
     const dx = ball.x - entity.x;
     const dz = ball.z - entity.z;
     const dist = Math.sqrt(dx*dx + dz*dz);
-    // Height check
-    const dy = Math.abs(ball.y - 1.0); // Assume entity center mass is at y=1.0
-    return dist < (entity.radius + BALL_RADIUS) && dy < 1.0;
+    const dy = Math.abs(ball.y - 1.0); 
+    // More generous hit detection
+    return dist < (entity.radius + BALL_RADIUS + 0.2) && dy < 1.2;
   }
   bounceBallOff(ball: Ball) {
     ball.vx = -ball.vx * 0.5;
     ball.vz = -ball.vz * 0.5;
-    ball.vy = 5; // Pop up
-    ball.owner = null; // Neutralize
+    ball.vy = 8; // High pop up
+    ball.owner = null;
   }
   onHit(victim: 'player' | 'bot') {
-    // Register hit event for particles
-    physicsState.events.push({
-        type: 'hit',
-        x: victim === 'player' ? this.player.x : this.bot.x,
-        z: victim === 'player' ? this.player.z : this.bot.z
-    });
-    // Update Game Store
+    const x = victim === 'player' ? this.player.x : this.bot.x;
+    const z = victim === 'player' ? this.player.z : this.bot.z;
+    // Visuals
+    useGameStore.getState().addShake(0.8);
+    this.addEvent('hit', x, z, victim === 'player' ? "OOF!" : "BONK!");
+    // Logic
     if (victim === 'player') {
         useGameStore.getState().decrementPlayerLives();
         this.player.invulnerable = 1.5;
@@ -295,7 +401,7 @@ class PhysicsEngine {
         useGameStore.getState().decrementBotLives();
         this.bot.invulnerable = 1.5;
     }
-    // Check for round end
+    // Round End Check
     const { playerLives, botLives } = useGameStore.getState();
     if (playerLives <= 0) {
         useGameStore.getState().winRound('bot');
@@ -303,6 +409,20 @@ class PhysicsEngine {
     } else if (botLives <= 0) {
         useGameStore.getState().winRound('player');
         this.resetPositions();
+    }
+  }
+  addEvent(type: 'hit' | 'catch' | 'throw' | 'pickup', x: number, z: number, text?: string) {
+    physicsState.events.push({
+        id: Math.random(),
+        type,
+        x,
+        z,
+        text,
+        time: Date.now()
+    });
+    // Keep array small
+    if (physicsState.events.length > 20) {
+        physicsState.events.shift();
     }
   }
   syncState() {

@@ -6,26 +6,39 @@ import * as THREE from 'three';
 export function Entities() {
   const playerRef = useRef<THREE.Group>(null);
   const botRef = useRef<THREE.Group>(null);
-  // We'll use a map for balls to update them efficiently
+  const playerMatRef = useRef<THREE.MeshStandardMaterial>(null);
+  const botMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const ballRefs = useRef<Map<number, THREE.Mesh>>(new Map());
-  useFrame(() => {
+  useFrame((state) => {
+    const time = state.clock.getElapsedTime();
     // Sync Player
     if (playerRef.current) {
       playerRef.current.position.set(physicsState.player.x, 0, physicsState.player.z);
-      // Simple tilt based on movement could go here
-      if (physicsState.player.isHit) {
-        playerRef.current.visible = Math.random() > 0.5; // Flicker effect
-      } else {
-        playerRef.current.visible = true;
+      // Hit Flash
+      if (playerMatRef.current) {
+        if (physicsState.player.isHit) {
+            const flash = Math.sin(time * 20) > 0 ? 1 : 0;
+            playerMatRef.current.emissive.setScalar(flash);
+            playerMatRef.current.color.setHex(0xffffff);
+        } else {
+            playerMatRef.current.emissive.setScalar(0);
+            playerMatRef.current.color.setHex(0x3b82f6); // Blue
+        }
       }
     }
     // Sync Bot
     if (botRef.current) {
       botRef.current.position.set(physicsState.bot.x, 0, physicsState.bot.z);
-      if (physicsState.bot.isHit) {
-        botRef.current.visible = Math.random() > 0.5;
-      } else {
-        botRef.current.visible = true;
+      // Hit Flash
+      if (botMatRef.current) {
+        if (physicsState.bot.isHit) {
+            const flash = Math.sin(time * 20) > 0 ? 1 : 0;
+            botMatRef.current.emissive.setScalar(flash);
+            botMatRef.current.color.setHex(0xffffff);
+        } else {
+            botMatRef.current.emissive.setScalar(0);
+            botMatRef.current.color.setHex(0xef4444); // Red
+        }
       }
     }
     // Sync Balls
@@ -33,8 +46,11 @@ export function Entities() {
       const mesh = ballRefs.current.get(ballData.id);
       if (mesh) {
         mesh.position.set(ballData.x, ballData.y, ballData.z);
-        // Rotate ball based on velocity for visual flair
-        mesh.rotation.x += 0.1;
+        // Rotate based on velocity
+        if (ballData.state === 'flying') {
+            mesh.rotation.x += 0.2;
+            mesh.rotation.z += 0.2;
+        }
       }
     });
   });
@@ -43,9 +59,8 @@ export function Entities() {
       {/* Player */}
       <group ref={playerRef}>
         <Capsule args={[0.4, 1, 4, 8]} position={[0, 0.9, 0]} castShadow>
-          <meshStandardMaterial color="#3b82f6" />
+          <meshStandardMaterial ref={playerMatRef} color="#3b82f6" />
         </Capsule>
-        {/* Eyes/Face indicator */}
         <Box args={[0.3, 0.1, 0.1]} position={[0, 1.2, -0.35]}>
             <meshStandardMaterial color="white" />
         </Box>
@@ -53,7 +68,7 @@ export function Entities() {
       {/* Bot */}
       <group ref={botRef}>
         <Capsule args={[0.4, 1, 4, 8]} position={[0, 0.9, 0]} castShadow>
-          <meshStandardMaterial color="#ef4444" />
+          <meshStandardMaterial ref={botMatRef} color="#ef4444" />
         </Capsule>
         <Box args={[0.3, 0.1, 0.1]} position={[0, 1.2, 0.35]}>
             <meshStandardMaterial color="black" />
@@ -61,7 +76,7 @@ export function Entities() {
       </group>
       {/* Balls */}
       {physicsState.balls.map((ball) => (
-        <Sphere 
+        <Sphere
           key={ball.id}
           ref={(el) => {
             if (el) ballRefs.current.set(ball.id, el);
@@ -76,7 +91,6 @@ export function Entities() {
     </group>
   );
 }
-// Helper for Box since it's not exported by drei directly sometimes or just to be safe
 function Box(props: any) {
     return (
         <mesh {...props}>

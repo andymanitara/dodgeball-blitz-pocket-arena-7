@@ -1,20 +1,48 @@
-import React, { useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import React, { useEffect, useRef } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { SoftShadows } from '@react-three/drei';
 import { Court } from './Court';
 import { Entities } from './Entities';
+import { Effects } from './Effects';
 import { physicsEngine } from '@/lib/physicsEngine';
 import { useGameStore } from '@/store/useGameStore';
+import * as THREE from 'three';
 function PhysicsLoop() {
   const phase = useGameStore(s => s.phase);
   useFrame((state, delta) => {
     if (phase === 'playing') {
-      // Cap delta to prevent huge jumps if tab is inactive
       const dt = Math.min(delta, 0.1);
       physicsEngine.update(dt);
     }
   });
   return null;
+}
+function CameraRig() {
+    const { camera } = useThree();
+    const basePos = useRef(new THREE.Vector3(0, 14, 10)); // Higher angle
+    const shakeIntensity = useGameStore(s => s.shakeIntensity);
+    const decayShake = useGameStore(s => s.decayShake);
+    useEffect(() => {
+        camera.position.copy(basePos.current);
+        camera.lookAt(0, 0, 0);
+    }, [camera]);
+    useFrame(() => {
+        if (shakeIntensity > 0) {
+            const rx = (Math.random() - 0.5) * shakeIntensity;
+            const ry = (Math.random() - 0.5) * shakeIntensity;
+            const rz = (Math.random() - 0.5) * shakeIntensity;
+            camera.position.set(
+                basePos.current.x + rx,
+                basePos.current.y + ry,
+                basePos.current.z + rz
+            );
+            decayShake();
+        } else {
+            // Return to base smoothly
+            camera.position.lerp(basePos.current, 0.1);
+        }
+    });
+    return null;
 }
 export function Scene() {
   const phase = useGameStore(s => s.phase);
@@ -26,26 +54,29 @@ export function Scene() {
   return (
     <Canvas
       shadows
-      camera={{ position: [0, 12, 10], fov: 50 }}
+      camera={{ position: [0, 14, 10], fov: 45 }}
       className="w-full h-full bg-slate-900"
     >
       <PhysicsLoop />
+      <CameraRig />
       {/* Lighting */}
-      <ambientLight intensity={0.5} />
-      <directionalLight 
-        position={[5, 10, 5]} 
-        intensity={1} 
-        castShadow 
+      <ambientLight intensity={0.6} />
+      <directionalLight
+        position={[5, 10, 5]}
+        intensity={1.2}
+        castShadow
         shadow-mapSize={[1024, 1024]}
+        shadow-bias={-0.001}
       >
-        <orthographicCamera attach="shadow-camera" args={[-10, 10, 10, -10]} />
+        <orthographicCamera attach="shadow-camera" args={[-12, 12, 12, -12]} />
       </directionalLight>
       {/* World */}
       <group rotation={[0, 0, 0]}>
         <Court />
         <Entities />
+        <Effects />
       </group>
-      <SoftShadows size={10} samples={8} />
+      <SoftShadows size={15} samples={8} />
     </Canvas>
   );
 }

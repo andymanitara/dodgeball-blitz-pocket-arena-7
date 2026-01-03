@@ -11,7 +11,6 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 import '@/index.css'
 import { HomePage } from '@/pages/HomePage'
-
 const router = createBrowserRouter([
   {
     path: "/",
@@ -19,8 +18,6 @@ const router = createBrowserRouter([
     errorElement: <RouteErrorBoundary />,
   },
 ]);
-
-// Do not touch this code
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
@@ -28,4 +25,3 @@ createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </StrictMode>,
 )
-   

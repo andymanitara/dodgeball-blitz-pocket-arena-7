@@ -7,13 +7,18 @@ export interface GameState {
   playerLives: number;
   botLives: number;
   winner: 'player' | 'bot' | null;
+  shakeIntensity: number;
+  currentRound: number;
   // Actions
   setPhase: (phase: GamePhase) => void;
   startGame: () => void;
+  startNextRound: () => void;
   resetMatch: () => void;
   decrementPlayerLives: () => void;
   decrementBotLives: () => void;
   winRound: (winner: 'player' | 'bot') => void;
+  addShake: (amount: number) => void;
+  decayShake: () => void;
 }
 // Mutable input state for high-frequency updates without re-renders
 export const gameInput = {
@@ -21,13 +26,20 @@ export const gameInput = {
   isThrowing: false,
   isDodging: false,
 };
+export interface GameEvent {
+  id: number;
+  type: 'hit' | 'catch' | 'throw' | 'pickup';
+  x: number;
+  z: number;
+  text?: string;
+  time: number;
+}
 // Mutable physics state for the engine to write to and React to read from via refs
-// This avoids storing 60fps position data in Zustand
 export const physicsState = {
   player: { x: 0, z: 6, rotation: 0, isHit: false },
   bot: { x: 0, z: -6, rotation: 0, isHit: false },
   balls: [] as Array<{ id: number; x: number; y: number; z: number; state: 'idle' | 'held' | 'flying' }>,
-  events: [] as Array<{ type: 'hit' | 'catch' | 'throw'; x: number; z: number }>, // For particle effects
+  events: [] as GameEvent[], 
 };
 export const useGameStore = create<GameState>((set) => ({
   phase: 'menu',
@@ -36,13 +48,26 @@ export const useGameStore = create<GameState>((set) => ({
   playerLives: 3,
   botLives: 3,
   winner: null,
+  shakeIntensity: 0,
+  currentRound: 1,
   setPhase: (phase) => set({ phase }),
-  startGame: () => set({ 
-    phase: 'playing', 
-    playerLives: 3, 
+  startGame: () => set({
+    phase: 'playing',
+    playerLives: 3,
     botLives: 3,
-    // Keep scores if it's a new round, but for MVP startGame might be full reset
+    playerScore: 0,
+    botScore: 0,
+    currentRound: 1,
+    winner: null,
+    shakeIntensity: 0,
   }),
+  startNextRound: () => set((state) => ({
+    phase: 'playing',
+    playerLives: 3,
+    botLives: 3,
+    currentRound: state.currentRound + 1,
+    shakeIntensity: 0,
+  })),
   resetMatch: () => set({
     phase: 'menu',
     playerScore: 0,
@@ -50,6 +75,8 @@ export const useGameStore = create<GameState>((set) => ({
     playerLives: 3,
     botLives: 3,
     winner: null,
+    currentRound: 1,
+    shakeIntensity: 0,
   }),
   decrementPlayerLives: () => set((state) => {
     const newLives = Math.max(0, state.playerLives - 1);
@@ -73,4 +100,10 @@ export const useGameStore = create<GameState>((set) => ({
       winner: matchWinner,
     };
   }),
+  addShake: (amount) => set((state) => ({
+    shakeIntensity: Math.min(state.shakeIntensity + amount, 2.0) // Cap at 2.0
+  })),
+  decayShake: () => set((state) => ({
+    shakeIntensity: Math.max(0, state.shakeIntensity * 0.9)
+  })),
 }));
