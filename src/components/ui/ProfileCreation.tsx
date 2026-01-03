@@ -26,7 +26,8 @@ function CharacterPreview({ hairStyle }: { hairStyle: number }) {
     }
   });
   return (
-    <group ref={groupRef}>
+    // Manual offset to lower the character so the head is visible
+    <group ref={groupRef} position={[0, -0.9, 0]}>
       <CharacterModel
         entity={dummyEntity}
         color="#3b82f6"
@@ -85,7 +86,8 @@ export function ProfileCreation() {
             <Suspense fallback={null}>
               <ambientLight intensity={0.8} />
               <directionalLight position={[2, 5, 2]} intensity={1.5} castShadow />
-              <Stage intensity={0.5} environment="city" adjustCamera={false}>
+              {/* center={false} is critical here to respect the manual position in CharacterPreview */}
+              <Stage intensity={0.5} environment="city" adjustCamera={false} center={false}>
                 <CharacterPreview hairStyle={hairStyle} />
               </Stage>
               <OrbitControls enableZoom={false} enablePan={false} minPolarAngle={Math.PI / 3} maxPolarAngle={Math.PI / 2} />
@@ -119,9 +121,9 @@ export function ProfileCreation() {
                     maxLength={12}
                     />
                 </div>
-                <Button 
-                    variant="secondary" 
-                    size="icon" 
+                <Button
+                    variant="secondary"
+                    size="icon"
                     className="h-12 w-12 bg-slate-800 border border-slate-600 hover:bg-slate-700"
                     onClick={generateRandomName}
                     title="Random Name"
