@@ -19,7 +19,7 @@ export function GameHUD() {
     }
   }, [phase, currentRound]);
   return (
-    <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between overflow-hidden">
+    <div className="absolute inset-0 pointer-events-none px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] flex flex-col justify-between overflow-hidden">
       {/* Top Bar */}
       <div className="flex justify-between items-start pt-2 px-2">
         {/* Player Stats (Left) */}
@@ -70,7 +70,7 @@ export function GameHUD() {
       {/* Round Start Overlay */}
       <AnimatePresence>
         {showRoundStart && (
-            <motion.div 
+            <motion.div
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 1.5, opacity: 0 }}

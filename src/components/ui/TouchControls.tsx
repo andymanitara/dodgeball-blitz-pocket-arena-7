@@ -103,7 +103,7 @@ export function TouchControls() {
   const setDodge = (active: boolean) => { gameInput.isDodging = active; };
   const setThrow = (active: boolean) => { gameInput.isThrowing = active; };
   return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col justify-end pb-8 px-4 select-none z-50">
+    <div className="absolute inset-0 pointer-events-none flex flex-col justify-end pb-[calc(2rem+env(safe-area-inset-bottom))] px-4 select-none z-50">
       <div className="flex justify-between items-end w-full max-w-md mx-auto">
         {/* Joystick Area */}
         <div

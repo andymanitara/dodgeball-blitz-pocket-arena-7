@@ -18,7 +18,7 @@ export function HomePage() {
   const botScore = useGameStore(s => s.botScore);
   const [activeModal, setActiveModal] = useState<'none' | 'howto' | 'settings'>('none');
   return (
-    <div className="w-full h-[100dvh] bg-slate-900 relative overflow-hidden touch-none select-none">
+    <div className="fixed inset-0 w-full h-[100dvh] bg-slate-900 overflow-hidden touch-none select-none">
       {/* 3D Scene Layer */}
       <div className="absolute inset-0 z-0">
         <Scene />
