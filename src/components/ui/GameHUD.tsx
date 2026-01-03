@@ -65,15 +65,16 @@ export function GameHUD() {
               >
                 <Heart
                   className={cn(
-                    "w-8 h-8 fill-current transition-colors",
-                    i < playerLives ? "text-red-500" : "text-gray-600"
+                    "w-8 h-8 fill-current drop-shadow-md transition-colors",
+                    i < playerLives ? "text-red-500 stroke-red-700" : "text-slate-700 stroke-slate-600"
                   )}
+                  strokeWidth={2.5}
                 />
               </motion.div>
             ))}
           </div>
-          <div className="bg-blue-600/90 backdrop-blur text-white px-4 py-1 rounded-full font-black text-lg shadow-lg self-start border-2 border-blue-400 max-w-[150px] truncate">
-            {username.toUpperCase()}: {playerScore}
+          <div className="bg-blue-600 text-white px-4 py-1.5 rounded-xl font-black text-xl shadow-[0_4px_0_rgb(30,58,138)] border-2 border-blue-400 max-w-[160px] truncate transform -skew-x-6">
+            <span className="drop-shadow-md">{username.toUpperCase()}: {playerScore}</span>
           </div>
         </div>
         {/* Center Area: Pause & Online Status */}
@@ -81,16 +82,16 @@ export function GameHUD() {
             <Button
                 variant="ghost"
                 size="icon"
-                className="w-12 h-12 rounded-full bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm border border-white/10"
+                className="w-12 h-12 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-md border border-white/20 shadow-lg"
                 onClick={togglePause}
             >
                 <Pause className="w-6 h-6 fill-current" />
             </Button>
             {/* Online Indicator */}
             {gameMode === 'multiplayer' && (
-                <div className="flex items-center gap-1 bg-black/40 px-2 py-1 rounded-full backdrop-blur-sm border border-white/10">
-                    <div className={cn("w-2 h-2 rounded-full animate-pulse", status === 'connected' ? "bg-green-500" : "bg-yellow-500")} />
-                    <span className="text-[10px] font-bold text-white tracking-wider">ONLINE</span>
+                <div className="flex items-center gap-1.5 bg-black/60 px-3 py-1 rounded-full backdrop-blur-md border border-white/10 shadow-lg">
+                    <div className={cn("w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]", status === 'connected' ? "bg-green-500 text-green-500" : "bg-yellow-500 text-yellow-500")} />
+                    <span className="text-[10px] font-bold text-white tracking-widest">ONLINE</span>
                 </div>
             )}
         </div>
@@ -105,15 +106,16 @@ export function GameHUD() {
               >
                 <Heart
                   className={cn(
-                    "w-8 h-8 fill-current transition-colors",
-                    i < botLives ? "text-red-500" : "text-gray-600"
+                    "w-8 h-8 fill-current drop-shadow-md transition-colors",
+                    i < botLives ? "text-red-500 stroke-red-700" : "text-slate-700 stroke-slate-600"
                   )}
+                  strokeWidth={2.5}
                 />
               </motion.div>
             ))}
           </div>
-          <div className="bg-red-600/90 backdrop-blur text-white px-4 py-1 rounded-full font-black text-lg shadow-lg self-end border-2 border-red-400">
-            {gameMode === 'multiplayer' ? 'OPPONENT' : 'BOT'}: {botScore}
+          <div className="bg-red-600 text-white px-4 py-1.5 rounded-xl font-black text-xl shadow-[0_4px_0_rgb(153,27,27)] border-2 border-red-400 transform -skew-x-6">
+            <span className="drop-shadow-md">{gameMode === 'multiplayer' ? 'ENEMY' : 'BOT'}: {botScore}</span>
           </div>
         </div>
       </div>
@@ -126,7 +128,7 @@ export function GameHUD() {
                 exit={{ scale: 1.5, opacity: 0 }}
                 className="absolute inset-0 flex items-center justify-center z-40"
             >
-                <h2 className="text-6xl md:text-8xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.5)] stroke-black tracking-tighter italic">
+                <h2 className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-300 drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] stroke-black tracking-tighter italic">
                     ROUND {currentRound}
                 </h2>
             </motion.div>
@@ -143,7 +145,7 @@ export function GameHUD() {
                 transition={{ duration: 0.5 }}
                 className="absolute inset-0 flex items-center justify-center z-50"
             >
-                <h2 className="text-9xl font-black text-yellow-400 drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)] stroke-black tracking-tighter">
+                <h2 className="text-9xl font-black text-yellow-400 drop-shadow-[0_10px_0_rgba(161,98,7,1)] stroke-black tracking-tighter">
                     {countdown}
                 </h2>
             </motion.div>
@@ -155,7 +157,7 @@ export function GameHUD() {
                 exit={{ scale: 2, opacity: 0 }}
                 className="absolute inset-0 flex items-center justify-center z-50"
             >
-                <h2 className="text-9xl font-black text-green-400 drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)] stroke-black tracking-tighter">
+                <h2 className="text-9xl font-black text-green-400 drop-shadow-[0_10px_0_rgba(21,128,61,1)] stroke-black tracking-tighter italic">
                     GO!
                 </h2>
             </motion.div>
