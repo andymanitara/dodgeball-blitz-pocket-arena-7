@@ -7,8 +7,8 @@ interface MultiplayerState {
   peerId: string | null;
   opponentId: string | null;
   error: string | null;
-  isQueuing: boolean;
-  queueCount: number;
+  gameCode: string | null;
+  targetCode: string | null;
   rematchRequested: boolean;
   opponentRematchRequested: boolean;
   setRole: (role: MultiplayerRole) => void;
@@ -17,13 +17,10 @@ interface MultiplayerState {
   setOpponentId: (id: string) => void;
   setError: (error: string | null) => void;
   clearError: () => void;
-  setIsQueuing: (isQueuing: boolean) => void;
-  setQueueCount: (count: number) => void;
   setRematchRequested: (requested: boolean) => void;
   setOpponentRematchRequested: (requested: boolean) => void;
-  joinQueue: (peerId: string) => Promise<boolean>;
-  leaveQueue: (peerId: string) => Promise<void>;
-  fetchQueueCount: () => Promise<void>;
+  hostGame: () => void;
+  joinGame: (code: string) => void;
   reset: () => void;
 }
 export const useMultiplayerStore = create<MultiplayerState>((set) => ({
@@ -32,8 +29,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set) => ({
   peerId: null,
   opponentId: null,
   error: null,
-  isQueuing: false,
-  queueCount: 0,
+  gameCode: null,
+  targetCode: null,
   rematchRequested: false,
   opponentRematchRequested: false,
   setRole: (role) => set({ role }),
@@ -42,52 +39,25 @@ export const useMultiplayerStore = create<MultiplayerState>((set) => ({
   setOpponentId: (opponentId) => set({ opponentId }),
   setError: (error) => set({ error }),
   clearError: () => set({ error: null }),
-  setIsQueuing: (isQueuing) => set({ isQueuing }),
-  setQueueCount: (queueCount) => set({ queueCount }),
   setRematchRequested: (rematchRequested) => set({ rematchRequested }),
   setOpponentRematchRequested: (opponentRematchRequested) => set({ opponentRematchRequested }),
-  joinQueue: async (peerId) => {
-    set({ isQueuing: true, error: null });
-    try {
-      const res = await fetch('/api/queue/join', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ peerId }),
-      });
-      if (!res.ok) throw new Error('Failed to join queue');
-      const data = await res.json();
-      if (data.match) {
-        set({ opponentId: data.opponentId, isQueuing: false, status: 'connecting' });
-        return true;
-      }
-      return false;
-    } catch (err) {
-      set({ error: (err as Error).message, isQueuing: false });
-      return false;
-    }
+  hostGame: () => {
+    // Generate 6-char alphanumeric code
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    set({
+        role: 'host',
+        gameCode: code,
+        status: 'disconnected', // Will become 'connecting' when Peer initializes
+        error: null
+    });
   },
-  leaveQueue: async (peerId) => {
-    try {
-      const res = await fetch('/api/queue/leave', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ peerId }),
-      });
-      if (!res.ok) throw new Error('Failed to leave queue');
-      set({ isQueuing: false });
-    } catch (err) {
-      set({ error: (err as Error).message });
-    }
-  },
-  fetchQueueCount: async () => {
-    try {
-      const res = await fetch('/api/queue/count');
-      if (!res.ok) throw new Error('Failed to fetch queue count');
-      const data = await res.json();
-      set({ queueCount: data.count });
-    } catch (err) {
-      set({ error: (err as Error).message });
-    }
+  joinGame: (code) => {
+    set({
+        role: 'client',
+        targetCode: code,
+        status: 'connecting',
+        error: null
+    });
   },
   reset: () => set({
     role: null,
@@ -95,8 +65,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set) => ({
     peerId: null,
     opponentId: null,
     error: null,
-    isQueuing: false,
-    queueCount: 0,
+    gameCode: null,
+    targetCode: null,
     rematchRequested: false,
     opponentRematchRequested: false
   }),

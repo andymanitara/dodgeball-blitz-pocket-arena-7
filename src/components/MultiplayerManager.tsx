@@ -1,262 +1,179 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import Peer, { DataConnection } from 'peerjs';
 import { useMultiplayerStore } from '@/store/useMultiplayerStore';
 import { useGameStore, gameInput } from '@/store/useGameStore';
 import { physicsEngine } from '@/lib/physicsEngine';
 import { toast } from 'sonner';
+const ID_PREFIX = 'db-blitz-';
 export function MultiplayerManager() {
   const peerRef = useRef<Peer | null>(null);
   const connRef = useRef<DataConnection | null>(null);
-  const isManualDisconnect = useRef(false);
-  const [restartTrigger, setRestartTrigger] = useState(0);
   // Store Selectors
   const role = useMultiplayerStore(s => s.role);
-  const peerId = useMultiplayerStore(s => s.peerId);
-  const status = useMultiplayerStore(s => s.status);
-  const isQueuing = useMultiplayerStore(s => s.isQueuing);
+  const gameCode = useMultiplayerStore(s => s.gameCode);
+  const targetCode = useMultiplayerStore(s => s.targetCode);
   const rematchRequested = useMultiplayerStore(s => s.rematchRequested);
   const opponentRematchRequested = useMultiplayerStore(s => s.opponentRematchRequested);
-  // Store Actions
+  const phase = useGameStore(s => s.phase);
+  // Actions
   const setPeerId = useMultiplayerStore(s => s.setPeerId);
   const setStatus = useMultiplayerStore(s => s.setStatus);
   const setError = useMultiplayerStore(s => s.setError);
   const setOpponentId = useMultiplayerStore(s => s.setOpponentId);
-  const setRole = useMultiplayerStore(s => s.setRole);
-  const setIsQueuing = useMultiplayerStore(s => s.setIsQueuing);
-  const setQueueCount = useMultiplayerStore(s => s.setQueueCount);
   const resetMultiplayer = useMultiplayerStore(s => s.reset);
   const setOpponentRematchRequested = useMultiplayerStore(s => s.setOpponentRematchRequested);
   const setRematchRequested = useMultiplayerStore(s => s.setRematchRequested);
   const startGame = useGameStore(s => s.startGame);
-  const phase = useGameStore(s => s.phase);
-  // Handle Connection Logic
-  const handleConnection = useCallback((conn: DataConnection, myRole: 'host' | 'client') => {
+  const resetMatch = useGameStore(s => s.resetMatch);
+  // Handle Incoming Connection (Host Side)
+  const handleIncomingConnection = useCallback((conn: DataConnection) => {
     connRef.current = conn;
-    setRole(myRole);
     setStatus('connecting');
-    setIsQueuing(false); // Stop queuing if connected
     conn.on('open', () => {
-      console.log('Connected to:', conn.peer);
+      console.log('Connected to client:', conn.peer);
       setStatus('connected');
       setOpponentId(conn.peer);
-      // If Host, start the game immediately
-      if (myRole === 'host') {
-        startGame('multiplayer');
-        physicsEngine.setMode('host');
-        // Send start signal
-        conn.send({ type: 'start' });
-      } else {
-        physicsEngine.setMode('client');
-      }
+      // Host starts game immediately upon connection
+      startGame('multiplayer');
+      physicsEngine.setMode('host');
+      conn.send({ type: 'start' });
+      toast.success('Client connected! Starting game...');
     });
+    setupConnectionListeners(conn, 'host');
+  }, [setStatus, setOpponentId, startGame]);
+  // Handle Outgoing Connection (Client Side)
+  const connectToHost = useCallback((hostCode: string) => {
+    if (!peerRef.current) return;
+    const hostId = `${ID_PREFIX}${hostCode}`;
+    console.log('Connecting to host:', hostId);
+    setStatus('connecting');
+    const conn = peerRef.current.connect(hostId);
+    connRef.current = conn;
+    conn.on('open', () => {
+      console.log('Connected to host:', conn.peer);
+      setStatus('connected');
+      setOpponentId(conn.peer);
+      physicsEngine.setMode('client');
+      toast.success('Connected to Host!');
+    });
+    setupConnectionListeners(conn, 'client');
+  }, [setStatus, setOpponentId]);
+  // Shared Connection Listeners
+  const setupConnectionListeners = (conn: DataConnection, myRole: 'host' | 'client') => {
     conn.on('data', (data: any) => {
       if (myRole === 'host') {
-        // Host receives Inputs from Client
-        if (data.type === 'input') {
-          physicsEngine.setRemoteInput(data.payload);
-        } else if (data.type === 'rematch_request') {
-          setOpponentRematchRequested(true);
-          toast.info('Opponent wants a rematch!');
+        if (data.type === 'input') physicsEngine.setRemoteInput(data.payload);
+        else if (data.type === 'rematch_request') {
+            setOpponentRematchRequested(true);
+            toast.info('Opponent wants a rematch!');
         }
       } else {
-        // Client receives State from Host
-        if (data.type === 'state') {
-          physicsEngine.injectState(data.payload);
-        } else if (data.type === 'start') {
-          startGame('multiplayer');
-        } else if (data.type === 'restart') {
-          startGame('multiplayer');
-          setRematchRequested(false);
-          setOpponentRematchRequested(false);
-          toast.success('Rematch started!');
-        } else if (data.type === 'rematch_request') {
-          setOpponentRematchRequested(true);
-          toast.info('Opponent wants a rematch!');
+        if (data.type === 'state') physicsEngine.injectState(data.payload);
+        else if (data.type === 'start') startGame('multiplayer');
+        else if (data.type === 'restart') {
+            startGame('multiplayer');
+            setRematchRequested(false);
+            setOpponentRematchRequested(false);
+            toast.success('Rematch started!');
+        }
+        else if (data.type === 'rematch_request') {
+            setOpponentRematchRequested(true);
+            toast.info('Opponent wants a rematch!');
         }
       }
     });
     conn.on('close', () => {
-      if (isManualDisconnect.current) {
-        console.log('Manual disconnection completed');
-        isManualDisconnect.current = false;
-        return;
-      }
       console.log('Connection closed');
       setStatus('disconnected');
-      setRole(null);
-      // Reset game if active
       if (useGameStore.getState().phase === 'playing') {
-        useGameStore.getState().resetMatch();
-        toast.error('Opponent disconnected. Match ended.');
-      } else {
-        toast.info('Opponent disconnected.');
+        resetMatch();
+        toast.error('Opponent disconnected');
       }
+      resetMultiplayer();
     });
-  }, [setRole, setStatus, setOpponentId, startGame, setIsQueuing, setOpponentRematchRequested, setRematchRequested]);
+    conn.on('error', (err) => {
+      console.error('Connection error:', err);
+      setError(err.message);
+      toast.error('Connection lost');
+    });
+  };
+  // Initialize Peer when Role Changes
+  useEffect(() => {
+    // If no role, cleanup and return
+    if (!role) {
+        if (peerRef.current) {
+            peerRef.current.destroy();
+            peerRef.current = null;
+        }
+        return;
+    }
+    // If peer already exists, destroy it to ensure clean state for new role
+    if (peerRef.current) {
+        peerRef.current.destroy();
+    }
+    const isHost = role === 'host';
+    // Host uses specific ID, Client uses random ID
+    const myId = isHost && gameCode ? `${ID_PREFIX}${gameCode}` : undefined;
+    const peer = new Peer(myId);
+    peerRef.current = peer;
+    peer.on('open', (id) => {
+        console.log('Peer initialized:', id);
+        setPeerId(id);
+        if (!isHost && role === 'client' && targetCode) {
+            connectToHost(targetCode);
+        }
+    });
+    peer.on('connection', (conn) => {
+        // Only host accepts connections
+        if (isHost) {
+            handleIncomingConnection(conn);
+        } else {
+            // Client shouldn't receive connections in this model
+            conn.close();
+        }
+    });
+    peer.on('error', (err) => {
+        console.error('Peer error:', err);
+        setError(err.message);
+        setStatus('error');
+        toast.error(`Network Error: ${err.message}`);
+    });
+    return () => {
+        peer.destroy();
+        peerRef.current = null;
+    };
+  }, [role, gameCode, targetCode, connectToHost, handleIncomingConnection, setPeerId, setError, setStatus]);
   // Rematch Request Sender
   useEffect(() => {
     if (rematchRequested && connRef.current?.open) {
       connRef.current.send({ type: 'rematch_request' });
     }
   }, [rematchRequested]);
-  // Host Rematch Logic (Trigger Restart)
+  // Host Rematch Logic
   useEffect(() => {
     if (role === 'host' && rematchRequested && opponentRematchRequested) {
-        // Start Game
         startGame('multiplayer');
-        physicsEngine.setMode('host'); // Ensure mode is set
-        // Notify Client
+        physicsEngine.setMode('host');
         connRef.current?.send({ type: 'restart' });
-        // Reset flags
         setRematchRequested(false);
         setOpponentRematchRequested(false);
         toast.success('Rematch started!');
     }
   }, [role, rematchRequested, opponentRematchRequested, startGame, setRematchRequested, setOpponentRematchRequested]);
-  // Lifecycle Management: Cleanup when returning to menu
-  useEffect(() => {
-    if (phase === 'menu' && status === 'connected') {
-        console.log('User returned to menu, closing multiplayer connection');
-        isManualDisconnect.current = true;
-        connRef.current?.close();
-        resetMultiplayer();
-        // Trigger Peer re-initialization to get a fresh ID for next time
-        setRestartTrigger(prev => prev + 1);
-    }
-  }, [phase, status, resetMultiplayer]);
-  // Initialize Peer
-  useEffect(() => {
-    const peer = new Peer();
-    peerRef.current = peer;
-    // Connection Timeout Logic
-    const connectionTimeout = setTimeout(() => {
-        if (!peer.open) {
-            console.error('PeerJS connection timed out');
-            const errorMsg = 'Connection to matchmaking server timed out. Check your network/firewall.';
-            setError(errorMsg);
-            setStatus('error');
-            toast.error(errorMsg);
-        }
-    }, 15000); // 15 seconds timeout
-    peer.on('open', (id) => {
-      clearTimeout(connectionTimeout); // Clear timeout on success
-      console.log('My peer ID is: ' + id);
-      setPeerId(id);
-      setStatus('disconnected');
-    });
-    peer.on('connection', (conn) => {
-      console.log('Incoming connection from:', conn.peer);
-      handleConnection(conn, 'host');
-    });
-    peer.on('error', (err) => {
-      clearTimeout(connectionTimeout);
-      console.error('Peer error:', err);
-      setError(err.message);
-      setStatus('error');
-      setIsQueuing(false);
-      toast.error(`Connection Error: ${err.message}`);
-    });
-    return () => {
-      clearTimeout(connectionTimeout);
-      peer.destroy();
-    };
-  }, [restartTrigger, setPeerId, setStatus, setError, handleConnection, setIsQueuing]);
-  // Queue Logic
-  useEffect(() => {
-    let pollInterval: any = null;
-    let timeoutTimer: any = null;
-    const joinQueue = async () => {
-      if (!peerId) return;
-      try {
-        const res = await fetch('/api/queue/join', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ peerId })
-        });
-        const data = await res.json();
-        if (data.success) {
-          if (data.match && data.opponentId) {
-            // Match found! Connect as client
-            console.log('Match found! Connecting to:', data.opponentId);
-            if (peerRef.current) {
-              const conn = peerRef.current.connect(data.opponentId);
-              handleConnection(conn, 'client');
-            }
-          } else {
-            // Waiting... poll count
-            pollQueueCount();
-            pollInterval = setInterval(pollQueueCount, 3000);
-            // Auto-timeout after 30s
-            timeoutTimer = setTimeout(() => {
-              if (isQueuing) {
-                setIsQueuing(false);
-                toast.info('No match found. Please try again.');
-              }
-            }, 30000);
-          }
-        }
-      } catch (e) {
-        console.error('Queue join failed', e);
-        setIsQueuing(false);
-        toast.error('Failed to join matchmaking queue');
-      }
-    };
-    const pollQueueCount = async () => {
-      try {
-        const res = await fetch('/api/queue/count');
-        const data = await res.json();
-        if (data.success) {
-          setQueueCount(data.count);
-        }
-      } catch (e) {
-        console.error('Poll failed', e);
-      }
-    };
-    const leaveQueue = async () => {
-      if (!peerId) return;
-      try {
-        await fetch('/api/queue/leave', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ peerId })
-        });
-      } catch (e) {
-        console.error('Leave queue failed', e);
-      }
-    };
-    if (isQueuing && status === 'disconnected') {
-      joinQueue();
-    } else {
-      // Cleanup if we stop queuing or get connected
-      if (pollInterval) clearInterval(pollInterval);
-      if (timeoutTimer) clearTimeout(timeoutTimer);
-      // Only leave queue if we are NOT connected (if connected, we matched, so don't leave)
-      if (!isQueuing && peerId) {
-        leaveQueue();
-      }
-    }
-    return () => {
-      if (pollInterval) clearInterval(pollInterval);
-      if (timeoutTimer) clearTimeout(timeoutTimer);
-    };
-  }, [isQueuing, peerId, status, handleConnection, setIsQueuing, setQueueCount]);
-  // Host Broadcast Loop
+  // Sync Loops
   useEffect(() => {
     if (role !== 'host') return;
     const interval = setInterval(() => {
       if (connRef.current?.open) {
-        const snapshot = physicsEngine.getSnapshot();
-        connRef.current.send({ type: 'state', payload: snapshot });
+        connRef.current.send({ type: 'state', payload: physicsEngine.getSnapshot() });
       }
-    }, 50); // 20Hz update rate
+    }, 50);
     return () => clearInterval(interval);
   }, [role, phase]);
-  // Client Input Loop
   useEffect(() => {
     if (role !== 'client') return;
     const interval = setInterval(() => {
       if (connRef.current?.open) {
-        // Send local inputs
         connRef.current.send({
           type: 'input',
           payload: {
@@ -266,7 +183,7 @@ export function MultiplayerManager() {
           }
         });
       }
-    }, 33); // 30Hz input rate
+    }, 33);
     return () => clearInterval(interval);
   }, [role, phase]);
   return null;
