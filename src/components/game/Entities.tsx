@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Sphere, Trail, Box } from '@react-three/drei';
-import { physicsState } from '@/store/useGameStore';
+import { physicsState, useGameStore } from '@/store/useGameStore';
 import * as THREE from 'three';
 const Hair = ({ style }: { style: number }) => {
     const color = useMemo(() => {
@@ -82,8 +82,10 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
   // State for velocity calculation and animation
   const prevPos = useRef(new THREE.Vector3(entity.x, 0, entity.z));
   const walkTime = useRef(0);
+  // Get paused state to prevent animation updates when paused
+  const isPaused = useGameStore(s => s.isPaused);
   useFrame((state, delta) => {
-    if (!group.current || !bodyGroup.current) return;
+    if (!group.current || !bodyGroup.current || isPaused) return;
     // 1. Position Sync
     const currentPos = new THREE.Vector3(entity.x, 0, entity.z);
     group.current.position.copy(currentPos);
@@ -155,6 +157,12 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
     const targetPosY = isHit ? 0.2 : 0.75; // Drop to floor
     bodyGroup.current.rotation.x = THREE.MathUtils.lerp(bodyGroup.current.rotation.x, targetRotX, 0.1);
     bodyGroup.current.position.y = THREE.MathUtils.lerp(bodyGroup.current.position.y, targetPosY, 0.1);
+    // Comedic Spin on Hit
+    if (isHit) {
+        bodyGroup.current.rotation.y += delta * 15; // Spin fast!
+    } else {
+        bodyGroup.current.rotation.y = 0; // Reset
+    }
     // 6. Hit Flash Effect
     if (entity.isHit) {
         const flash = Math.sin(state.clock.elapsedTime * 20) > 0 ? 1 : 0;
@@ -277,7 +285,9 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
 const Ball = ({ id }: { id: number }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const [visualState, setVisualState] = useState({ owner: null as any, isLethal: false });
+  const isPaused = useGameStore(s => s.isPaused);
   useFrame(() => {
+    if (isPaused) return;
     const ballData = physicsState.balls.find(b => b.id === id);
     if (ballData && meshRef.current) {
       meshRef.current.position.set(ballData.x, ballData.y, ballData.z);

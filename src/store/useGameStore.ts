@@ -2,6 +2,7 @@ import { create } from 'zustand';
 export type GamePhase = 'menu' | 'playing' | 'round_over' | 'match_over';
 export interface GameState {
   phase: GamePhase;
+  isPaused: boolean;
   playerScore: number;
   botScore: number;
   playerLives: number;
@@ -29,6 +30,8 @@ export interface GameState {
   toggleSetting: (setting: keyof GameState['settings']) => void;
   setTimeScale: (scale: number) => void;
   setCountdown: (val: number) => void;
+  togglePause: () => void;
+  setPaused: (paused: boolean) => void;
 }
 // Mutable input state for high-frequency updates without re-renders
 export const gameInput = {
@@ -61,6 +64,7 @@ export const physicsState = {
 };
 export const useGameStore = create<GameState>((set) => ({
   phase: 'menu',
+  isPaused: false,
   playerScore: 0,
   botScore: 0,
   playerLives: 3,
@@ -78,6 +82,7 @@ export const useGameStore = create<GameState>((set) => ({
   setPhase: (phase) => set({ phase }),
   startGame: () => set({
     phase: 'playing',
+    isPaused: false,
     playerLives: 3,
     botLives: 3,
     playerScore: 0,
@@ -90,6 +95,7 @@ export const useGameStore = create<GameState>((set) => ({
   }),
   startNextRound: () => set((state) => ({
     phase: 'playing',
+    isPaused: false,
     playerLives: 3,
     botLives: 3,
     currentRound: state.currentRound + 1,
@@ -99,6 +105,7 @@ export const useGameStore = create<GameState>((set) => ({
   })),
   resetMatch: () => set({
     phase: 'menu',
+    isPaused: false,
     playerScore: 0,
     botScore: 0,
     playerLives: 3,
@@ -147,4 +154,6 @@ export const useGameStore = create<GameState>((set) => ({
   })),
   setTimeScale: (scale) => set({ timeScale: scale }),
   setCountdown: (val) => set({ countdown: val }),
+  togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
+  setPaused: (paused) => set({ isPaused: paused }),
 }));

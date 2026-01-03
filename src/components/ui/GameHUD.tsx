@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
-import { Heart } from 'lucide-react';
+import { Heart, Pause } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { audioController } from '@/lib/audioController';
+import { Button } from '@/components/ui/button';
 export function GameHUD() {
   const playerLives = useGameStore(s => s.playerLives);
   const botLives = useGameStore(s => s.botLives);
@@ -13,6 +14,8 @@ export function GameHUD() {
   const phase = useGameStore(s => s.phase);
   const countdown = useGameStore(s => s.countdown);
   const setCountdown = useGameStore(s => s.setCountdown);
+  const togglePause = useGameStore(s => s.togglePause);
+  const isPaused = useGameStore(s => s.isPaused);
   const [showRoundStart, setShowRoundStart] = useState(false);
   const [showGo, setShowGo] = useState(false);
   const prevCountdown = useRef(countdown);
@@ -25,6 +28,7 @@ export function GameHUD() {
   }, [phase, currentRound]);
   // Countdown Logic
   useEffect(() => {
+    if (isPaused) return;
     if (countdown > 0) {
         audioController.play('beep');
         const timer = setTimeout(() => {
@@ -40,11 +44,11 @@ export function GameHUD() {
         return () => clearTimeout(timer);
     }
     prevCountdown.current = countdown;
-  }, [countdown, setCountdown]);
+  }, [countdown, setCountdown, isPaused]);
   return (
     <div className="absolute inset-0 pointer-events-none px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] flex flex-col justify-between overflow-hidden">
       {/* Top Bar */}
-      <div className="flex justify-between items-start pt-2 px-2">
+      <div className="flex justify-between items-start pt-2 px-2 relative">
         {/* Player Stats (Left) */}
         <div className="flex flex-col gap-2">
           <div className="flex gap-1">
@@ -66,6 +70,17 @@ export function GameHUD() {
           <div className="bg-blue-600/90 backdrop-blur text-white px-4 py-1 rounded-full font-black text-lg shadow-lg self-start border-2 border-blue-400">
             YOU: {playerScore}
           </div>
+        </div>
+        {/* Pause Button (Center) */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-2 pointer-events-auto">
+            <Button
+                variant="ghost"
+                size="icon"
+                className="w-12 h-12 rounded-full bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm border border-white/10"
+                onClick={togglePause}
+            >
+                <Pause className="w-6 h-6 fill-current" />
+            </Button>
         </div>
         {/* Bot Stats (Right) */}
         <div className="flex flex-col gap-2 items-end">

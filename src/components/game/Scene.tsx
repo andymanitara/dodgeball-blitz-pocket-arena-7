@@ -10,9 +10,10 @@ import { COURT_WIDTH } from '@/lib/constants';
 import * as THREE from 'three';
 function PhysicsLoop() {
   const phase = useGameStore(s => s.phase);
+  const isPaused = useGameStore(s => s.isPaused);
   const timeScale = useGameStore(s => s.timeScale);
   useFrame((state, delta) => {
-    if (phase === 'playing') {
+    if (phase === 'playing' && !isPaused) {
       // Apply time scaling for slow-motion effects
       const dt = Math.min(delta, 0.1) * timeScale;
       physicsEngine.update(dt);
@@ -25,6 +26,7 @@ function CameraRig() {
     const basePos = useRef(new THREE.Vector3(0, 14, 10)); // Default high angle
     const shakeIntensity = useGameStore(s => s.shakeIntensity);
     const decayShake = useGameStore(s => s.decayShake);
+    const isPaused = useGameStore(s => s.isPaused);
     // Responsive Camera Logic
     useLayoutEffect(() => {
         const aspect = size.width / size.height;
@@ -48,6 +50,7 @@ function CameraRig() {
         camera.lookAt(0, 0, 0);
     }, [size.width, size.height, camera]);
     useFrame(() => {
+        if (isPaused) return;
         if (shakeIntensity > 0) {
             const rx = (Math.random() - 0.5) * shakeIntensity;
             const ry = (Math.random() - 0.5) * shakeIntensity;
@@ -83,10 +86,10 @@ export function Scene() {
       <PhysicsLoop />
       <CameraRig />
       <ambientLight intensity={0.6} />
-      <directionalLight
-        position={[5, 10, 5]}
-        intensity={1.2}
-        castShadow
+      <directionalLight 
+        position={[5, 10, 5]} 
+        intensity={1.2} 
+        castShadow 
         shadow-mapSize={[1024, 1024]}
         shadow-bias={-0.001}
       >
