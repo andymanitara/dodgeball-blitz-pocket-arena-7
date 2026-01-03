@@ -109,6 +109,23 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
     prevHoldingBallId.current = entity.holdingBallId;
     if (throwTimer.current > 0) {
         throwTimer.current -= delta;
+    }
+    // --- LEG ANIMATION (Decoupled from Arms) ---
+    if (speed > 0.5) {
+        // Walk Cycle
+        walkTime.current += delta * speed * 3;
+        const legAngle = Math.sin(walkTime.current) * 0.8;
+        if(leftLegGroup.current) leftLegGroup.current.rotation.x = legAngle;
+        if(rightLegGroup.current) rightLegGroup.current.rotation.x = -legAngle;
+    } else {
+        // Idle Legs
+        const damp = 10 * delta;
+        if(leftLegGroup.current) leftLegGroup.current.rotation.x = THREE.MathUtils.lerp(leftLegGroup.current.rotation.x, 0, damp);
+        if(rightLegGroup.current) rightLegGroup.current.rotation.x = THREE.MathUtils.lerp(rightLegGroup.current.rotation.x, 0, damp);
+    }
+    // --- ARM ANIMATION (Priority: Throw > Hold > Walk > Idle) ---
+    const damp = 10 * delta;
+    if (throwTimer.current > 0) {
         // Throw pose: Arms forward and down
         if(leftArm.current) leftArm.current.rotation.x = -Math.PI / 2 + 0.5;
         if(rightArm.current) rightArm.current.rotation.x = -Math.PI / 2 + 0.5;
@@ -123,10 +140,8 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
             rightArm.current.rotation.z = 0.5;
         }
     } else if (speed > 0.5) {
-        // Walk Cycle
-        walkTime.current += delta * speed * 3;
+        // Walk Swing (Opposite to legs)
         const armAngle = Math.cos(walkTime.current) * 0.6;
-        const legAngle = Math.sin(walkTime.current) * 0.8;
         if(leftArm.current) {
             leftArm.current.rotation.x = -armAngle;
             leftArm.current.rotation.z = 0;
@@ -135,11 +150,8 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
             rightArm.current.rotation.x = armAngle;
             rightArm.current.rotation.z = 0;
         }
-        if(leftLegGroup.current) leftLegGroup.current.rotation.x = legAngle;
-        if(rightLegGroup.current) rightLegGroup.current.rotation.x = -legAngle;
     } else {
-        // Idle Pose
-        const damp = 10 * delta;
+        // Idle Arms
         if(leftArm.current) {
             leftArm.current.rotation.x = THREE.MathUtils.lerp(leftArm.current.rotation.x, 0, damp);
             leftArm.current.rotation.z = THREE.MathUtils.lerp(leftArm.current.rotation.z, 0, damp);
@@ -148,8 +160,6 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
             rightArm.current.rotation.x = THREE.MathUtils.lerp(rightArm.current.rotation.x, 0, damp);
             rightArm.current.rotation.z = THREE.MathUtils.lerp(rightArm.current.rotation.z, 0, damp);
         }
-        if(leftLegGroup.current) leftLegGroup.current.rotation.x = THREE.MathUtils.lerp(leftLegGroup.current.rotation.x, 0, damp);
-        if(rightLegGroup.current) rightLegGroup.current.rotation.x = THREE.MathUtils.lerp(rightLegGroup.current.rotation.x, 0, damp);
     }
     // 5. Stumble / Hit Reaction
     const isHit = entity.isHit;

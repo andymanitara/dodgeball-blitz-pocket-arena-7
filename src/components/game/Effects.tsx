@@ -70,8 +70,8 @@ function Particles({ events }: { events: any[] }) {
   );
 }
 function FloatingText({ x, z, text, time }: { x: number, z: number, text: string, time: number }) {
-    if (!text) return null;
     const isPaused = useGameStore(s => s.isPaused);
+    if (!text) return null;
     // We need to track elapsed time manually if we want to pause animations correctly,
     // but for simple floating text, using Date.now() is acceptable as long as we accept it might jump if paused.
     // However, to prevent it from disappearing while paused, we should ideally use a game time.
