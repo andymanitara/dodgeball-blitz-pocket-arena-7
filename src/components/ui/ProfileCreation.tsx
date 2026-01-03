@@ -28,7 +28,8 @@ function CharacterPreview({ hairStyle }: { hairStyle: number }) {
   return (
     // Manual offset to lower the character so the head is visible and centered
     // CharacterModel forces Y=0 internally, so we move the wrapper group down
-    <group ref={groupRef} position={[0, -0.9, 0]}>
+    // Updated to -2.0 based on user feedback
+    <group ref={groupRef} position={[0, -2.0, 0]}>
       <CharacterModel
         entity={dummyEntity}
         color="#3b82f6"
@@ -90,14 +91,14 @@ export function ProfileCreation() {
               <directionalLight position={[5, 5, 5]} intensity={1.5} castShadow />
               {/* Character */}
               <CharacterPreview hairStyle={hairStyle} />
-              {/* Floor Shadow */}
-              <ContactShadows position={[0, -0.9, 0]} opacity={0.4} scale={10} blur={2.5} far={4} />
+              {/* Floor Shadow - Updated to -2.0 to match character */}
+              <ContactShadows position={[0, -2.0, 0]} opacity={0.4} scale={10} blur={2.5} far={4} />
               {/* Controls */}
-              <OrbitControls 
-                enableZoom={false} 
-                enablePan={false} 
-                minPolarAngle={Math.PI / 3} 
-                maxPolarAngle={Math.PI / 2} 
+              <OrbitControls
+                enableZoom={false}
+                enablePan={false}
+                minPolarAngle={Math.PI / 3}
+                maxPolarAngle={Math.PI / 2}
                 target={[0, 0, 0]}
               />
             </Suspense>
