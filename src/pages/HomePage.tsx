@@ -18,7 +18,7 @@ export function HomePage() {
   const botScore = useGameStore(s => s.botScore);
   const [activeModal, setActiveModal] = useState<'none' | 'howto' | 'settings'>('none');
   return (
-    <div className="w-full h-screen bg-slate-900 relative overflow-hidden touch-none select-none">
+    <div className="w-full h-[100dvh] bg-slate-900 relative overflow-hidden touch-none select-none">
       {/* 3D Scene Layer */}
       <div className="absolute inset-0 z-0">
         <Scene />
@@ -63,9 +63,9 @@ export function HomePage() {
               </motion.div>
               <div className="flex gap-4">
                 <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                    <Button 
-                        variant="secondary" 
-                        size="icon" 
+                    <Button
+                        variant="secondary"
+                        size="icon"
                         className="w-14 h-14 rounded-full bg-slate-800 border-2 border-slate-600 hover:bg-slate-700"
                         onClick={() => setActiveModal('howto')}
                     >
@@ -73,9 +73,9 @@ export function HomePage() {
                     </Button>
                 </motion.div>
                 <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                    <Button 
-                        variant="secondary" 
-                        size="icon" 
+                    <Button
+                        variant="secondary"
+                        size="icon"
                         className="w-14 h-14 rounded-full bg-slate-800 border-2 border-slate-600 hover:bg-slate-700"
                         onClick={() => setActiveModal('settings')}
                     >
