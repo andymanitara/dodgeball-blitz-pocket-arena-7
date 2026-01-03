@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, ArrowRight, Users, Loader2, X, Check } from 'lucide-react';
+import { Users, Loader2, X, Search, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useMultiplayerStore } from '@/store/useMultiplayerStore';
 import { toast } from 'sonner';
@@ -10,32 +9,25 @@ interface MultiplayerMenuProps {
   onClose: () => void;
 }
 export function MultiplayerMenu({ onClose }: MultiplayerMenuProps) {
-  const peerId = useMultiplayerStore(s => s.peerId);
   const status = useMultiplayerStore(s => s.status);
-  const [targetId, setTargetId] = useState('');
-  const [copied, setCopied] = useState(false);
+  const isQueuing = useMultiplayerStore(s => s.isQueuing);
+  const queueCount = useMultiplayerStore(s => s.queueCount);
+  const setIsQueuing = useMultiplayerStore(s => s.setIsQueuing);
   // Auto-close when connected
   useEffect(() => {
     if (status === 'connected') {
       const timer = setTimeout(() => {
         onClose();
-        toast.success('Connected to match!');
-      }, 500);
+        toast.success('Match Found! Starting game...');
+      }, 1000);
       return () => clearTimeout(timer);
     }
   }, [status, onClose]);
-  const handleCopy = () => {
-    if (peerId) {
-      navigator.clipboard.writeText(peerId);
-      toast.success('Match Code copied!');
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+  const handleFindMatch = () => {
+    setIsQueuing(true);
   };
-  const handleConnect = () => {
-    if (!targetId.trim()) return;
-    // Dispatch event for Manager to pick up
-    window.dispatchEvent(new CustomEvent('connect-peer', { detail: targetId.trim() }));
+  const handleCancel = () => {
+    setIsQueuing(false);
   };
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -45,73 +37,66 @@ export function MultiplayerMenu({ onClose }: MultiplayerMenuProps) {
         exit={{ scale: 0.9, opacity: 0 }}
         className="w-full max-w-md"
       >
-        <Card className="bg-slate-900 border-slate-700 text-white shadow-2xl">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <Card className="bg-slate-900 border-slate-700 text-white shadow-2xl overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 bg-slate-800/50">
             <div className="flex items-center gap-2">
-                <Users className="w-6 h-6 text-blue-400" />
-                <CardTitle className="text-2xl font-bold text-white">MULTIPLAYER</CardTitle>
+                <Globe className="w-6 h-6 text-blue-400" />
+                <CardTitle className="text-2xl font-bold text-white">ONLINE MATCH</CardTitle>
             </div>
             <Button variant="ghost" size="icon" onClick={onClose} className="text-slate-400 hover:text-white hover:bg-slate-800">
               <X className="w-6 h-6" />
             </Button>
           </CardHeader>
-          <CardContent className="space-y-8 py-6">
-            {/* Host Section */}
-            <div className="space-y-3">
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Host a Match</h3>
-                <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                    <p className="text-xs text-slate-400 mb-2">Share this code with your friend:</p>
-                    <div className="flex gap-2">
-                        <div className="flex-1 bg-black/30 rounded-lg flex items-center px-3 font-mono text-lg text-blue-300 truncate select-all">
-                            {peerId || <Loader2 className="w-4 h-4 animate-spin text-slate-500" />}
-                        </div>
-                        <Button 
-                            size="icon" 
-                            variant={copied ? "default" : "secondary"}
-                            className={copied ? "bg-green-600 hover:bg-green-500" : ""}
-                            onClick={handleCopy} 
-                            disabled={!peerId}
-                        >
-                            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                        </Button>
+          <CardContent className="space-y-8 py-8 flex flex-col items-center text-center">
+            {status === 'connected' ? (
+                <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
+                    <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center border-2 border-green-500">
+                        <Users className="w-10 h-10 text-green-400" />
                     </div>
+                    <h3 className="text-2xl font-black text-green-400">MATCH FOUND!</h3>
+                    <p className="text-slate-400">Preparing arena...</p>
                 </div>
-            </div>
-            <div className="relative flex items-center justify-center">
-                <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-slate-700"></div>
-                </div>
-                <span className="relative bg-slate-900 px-2 text-xs text-slate-500 uppercase">OR</span>
-            </div>
-            {/* Join Section */}
-            <div className="space-y-3">
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Join a Match</h3>
-                <div className="flex gap-2">
-                    <Input
-                        placeholder="Enter Match Code..."
-                        className="bg-slate-800 border-slate-700 text-white h-12 font-mono focus:ring-blue-500"
-                        value={targetId}
-                        onChange={(e) => setTargetId(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
-                    />
-                    <Button
-                        className="h-12 w-12 bg-blue-600 hover:bg-blue-500"
-                        onClick={handleConnect}
-                        disabled={status === 'connecting' || !targetId.trim()}
+            ) : isQueuing ? (
+                <div className="flex flex-col items-center gap-6 w-full">
+                    <div className="relative">
+                        <div className="w-24 h-24 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <Search className="w-8 h-8 text-blue-400 animate-pulse" />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <h3 className="text-xl font-bold text-white">Searching for opponent...</h3>
+                        <p className="text-slate-400 text-sm">
+                            Players in queue: <span className="text-blue-400 font-mono font-bold">{queueCount}</span>
+                        </p>
+                    </div>
+                    <Button 
+                        variant="destructive" 
+                        size="lg" 
+                        className="w-full max-w-xs rounded-xl font-bold"
+                        onClick={handleCancel}
                     >
-                        {status === 'connecting' ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
+                        CANCEL SEARCH
                     </Button>
                 </div>
-            </div>
-            {status === 'connecting' && (
-                <div className="flex items-center justify-center gap-2 text-yellow-400 animate-pulse text-sm font-medium pt-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Connecting to opponent...</span>
-                </div>
-            )}
-            {status === 'error' && (
-                <div className="text-center text-red-400 text-sm font-medium pt-2">
-                    Connection failed. Please try again.
+            ) : (
+                <div className="flex flex-col items-center gap-6 w-full">
+                    <div className="bg-blue-500/10 p-6 rounded-full border border-blue-500/20">
+                        <Users className="w-16 h-16 text-blue-400" />
+                    </div>
+                    <div className="space-y-2 max-w-xs">
+                        <h3 className="text-xl font-bold text-white">Ready to Battle?</h3>
+                        <p className="text-slate-400 text-sm">
+                            Join the global queue and prove your skills against real players.
+                        </p>
+                    </div>
+                    <Button 
+                        size="lg" 
+                        className="w-full max-w-xs h-16 text-xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-[0_0_20px_rgba(37,99,235,0.3)] rounded-2xl transition-all hover:scale-105 active:scale-95"
+                        onClick={handleFindMatch}
+                    >
+                        FIND MATCH
+                    </Button>
                 </div>
             )}
           </CardContent>
