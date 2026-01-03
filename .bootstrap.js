@@ -81,7 +81,8 @@ function runSetupCommands() {
     "bun add three@^0.160.0",
     "bun add @types/three@^0.160.0",
     "bun add @react-three/fiber@^8.15.0",
-    "bun add @react-three/drei@^9.100.0"
+    "bun add @react-three/drei@^9.100.0",
+    "bun add three @types/three @react-three/fiber @react-three/drei"
 ];
     
     if (commands.length === 0) {
