@@ -59,7 +59,6 @@ export function Scene() {
     >
       <PhysicsLoop />
       <CameraRig />
-      {/* Lighting */}
       <ambientLight intensity={0.6} />
       <directionalLight
         position={[5, 10, 5]}
@@ -70,7 +69,6 @@ export function Scene() {
       >
         <orthographicCamera attach="shadow-camera" args={[-12, 12, 12, -12]} />
       </directionalLight>
-      {/* World */}
       <group rotation={[0, 0, 0]}>
         <Court />
         <Entities />

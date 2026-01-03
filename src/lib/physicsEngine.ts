@@ -38,6 +38,7 @@ interface Ball {
   state: 'idle' | 'held' | 'flying';
   owner: 'player' | 'bot' | null;
   grounded: boolean;
+  isLethal: boolean; // New property: true if ball can deal damage
 }
 class PhysicsEngine {
   player: Entity;
@@ -71,7 +72,8 @@ class PhysicsEngine {
       vx: 0, vy: 0, vz: 0,
       state: 'idle',
       owner: null,
-      grounded: true
+      grounded: true,
+      isLethal: false
     }));
   }
   resetPositions() {
@@ -138,10 +140,11 @@ class PhysicsEngine {
     if (this.bot.cooldown > 0) this.bot.cooldown -= dt;
     if (this.bot.invulnerable > 0) this.bot.invulnerable -= dt;
     // 1. Check for Dodge Opportunity (Highest Priority)
-    // Look for incoming balls
+    // Look for incoming LETHAL balls
     const incomingBall = this.balls.find(b => 
         b.state === 'flying' && 
         b.owner === 'player' && 
+        b.isLethal && // Only dodge lethal balls
         b.z < 0 && // In bot's half
         b.vz < 0 && // Moving towards bot
         Math.abs(b.x - this.bot.x) < 2.0 && // Close in X
@@ -186,11 +189,13 @@ class PhysicsEngine {
                 this.botActionTimer = 1.0 + Math.random() * 1.5;
                 break;
             }
-            // Find nearest idle ball
+            // Find nearest idle or safe ball
             let nearestDist = Infinity;
             let targetBall: Ball | null = null;
             this.balls.forEach(b => {
-                if (b.state === 'idle' && b.z < 2) { // Only seek balls in own half or near center
+                // Can seek idle balls OR flying non-lethal balls
+                const isPickable = b.state === 'idle' || (b.state === 'flying' && !b.isLethal);
+                if (isPickable && b.z < 2) { // Only seek balls in own half or near center
                     const dist = Math.sqrt(Math.pow(b.x - this.bot.x, 2) + Math.pow(b.z - this.bot.z, 2));
                     if (dist < nearestDist) {
                         nearestDist = dist;
@@ -277,6 +282,8 @@ class PhysicsEngine {
                 ball.vy = -ball.vy * 0.6; // Bounce dampening
                 ball.vx *= FRICTION;
                 ball.vz *= FRICTION;
+                // CRITICAL: Ball loses lethality immediately upon touching the floor
+                ball.isLethal = false;
                 if (Math.abs(ball.vy) < 2 && Math.abs(ball.vx) < 0.5 && Math.abs(ball.vz) < 0.5) {
                     ball.grounded = true;
                     ball.state = 'idle';
@@ -310,7 +317,8 @@ class PhysicsEngine {
   tryPickup(entity: Entity, type: 'player' | 'bot') {
     const pickupRange = 1.5;
     const ball = this.balls.find(b => 
-        b.state === 'idle' && 
+        // Can pick up if idle OR (flying but not lethal)
+        (b.state === 'idle' || (b.state === 'flying' && !b.isLethal)) &&
         Math.abs(b.x - entity.x) < pickupRange && 
         Math.abs(b.z - entity.z) < pickupRange
     );
@@ -318,6 +326,7 @@ class PhysicsEngine {
         ball.state = 'held';
         ball.owner = type;
         ball.grounded = false;
+        ball.isLethal = false; // Ensure it's not lethal when held
         entity.holdingBallId = ball.id;
         // Event
         this.addEvent('pickup', entity.x, entity.z);
@@ -358,6 +367,7 @@ class PhysicsEngine {
     ball.vz = dirZ * THROW_FORCE;
     ball.vy = THROW_UP_FORCE;
     ball.grounded = false;
+    ball.isLethal = true; // Ball becomes lethal when thrown
     entity.holdingBallId = null;
     this.addEvent('throw', entity.x, entity.z);
   }
@@ -365,14 +375,16 @@ class PhysicsEngine {
     this.balls.forEach(ball => {
         if (ball.state === 'flying') {
             // Check Player Hit
-            if (ball.owner !== 'player' && this.player.invulnerable <= 0) {
+            // Only count hit if ball is lethal
+            if (ball.owner !== 'player' && this.player.invulnerable <= 0 && ball.isLethal) {
                 if (this.checkSphereCapsule(ball, this.player)) {
                     this.onHit('player');
                     this.bounceBallOff(ball);
                 }
             }
             // Check Bot Hit
-            if (ball.owner !== 'bot' && this.bot.invulnerable <= 0) {
+            // Only count hit if ball is lethal
+            if (ball.owner !== 'bot' && this.bot.invulnerable <= 0 && ball.isLethal) {
                 if (this.checkSphereCapsule(ball, this.bot)) {
                     this.onHit('bot');
                     this.bounceBallOff(ball);
@@ -394,6 +406,7 @@ class PhysicsEngine {
     ball.vz = -ball.vz * 0.5;
     ball.vy = 8; // High pop up
     ball.owner = null;
+    ball.isLethal = false; // Ball loses lethality after hitting someone
   }
   onHit(victim: 'player' | 'bot') {
     const x = victim === 'player' ? this.player.x : this.bot.x;
