@@ -241,9 +241,9 @@ class PhysicsEngine {
     if (this.bot.invulnerable > 0) this.bot.invulnerable -= dt;
     // 1. Check for Dodge Opportunity (Highest Priority)
     // Look for incoming LETHAL balls
-    const incomingBall = this.balls.find(b => 
-        b.state === 'flying' && 
-        b.owner === 'player' && 
+    const incomingBall = this.balls.find(b =>
+        b.state === 'flying' &&
+        b.owner === 'player' &&
         b.isLethal && // Only dodge lethal balls
         b.z < 0 && // In bot's half
         b.vz < 0 && // Moving towards bot
@@ -416,7 +416,7 @@ class PhysicsEngine {
   }
   tryPickup(entity: Entity, type: 'player' | 'bot') {
     const pickupRange = 1.5;
-    const ball = this.balls.find(b => 
+    const ball = this.balls.find(b =>
         // Can pick up if idle OR (flying but not lethal)
         (b.state === 'idle' || (b.state === 'flying' && !b.isLethal)) &&
         Math.abs(b.x - entity.x) < pickupRange &&
@@ -660,8 +660,9 @@ class PhysicsEngine {
         }
         // 5. Update Shared State
         // We manually update physicsState to reflect the swapped/inverted entities
-        physicsState.player = { ...this.player, isHit: state.bot.isHit }; 
-        physicsState.bot = { ...this.bot, isHit: state.player.isHit };
+        // Added rotation: 0 to satisfy type requirements
+        physicsState.player = { ...this.player, isHit: state.bot.isHit, rotation: 0 };
+        physicsState.bot = { ...this.bot, isHit: state.player.isHit, rotation: 0 };
         physicsState.balls = this.balls;
         // 6. Game State Sync
         if (state.game) {
@@ -701,7 +702,7 @@ class PhysicsEngine {
         this.player.x = state.player.x;
         this.player.z = state.player.z;
         this.player.holdingBallId = state.player.holdingBallId;
-        this.player.stunTimer = state.player.isHit ? 1.0 : 0; 
+        this.player.stunTimer = state.player.isHit ? 1.0 : 0;
         this.bot.x = state.bot.x;
         this.bot.z = state.bot.z;
         this.bot.holdingBallId = state.bot.holdingBallId;
@@ -709,16 +710,17 @@ class PhysicsEngine {
         // Sync balls
         this.balls = state.balls.map((b: any) => ({
             ...b,
-            vx: 0, vy: 0, vz: 0 
+            vx: 0, vy: 0, vz: 0
         }));
         // Sync shared state for React
-        physicsState.player = state.player;
-        physicsState.bot = state.bot;
+        // Added rotation: 0 to satisfy type requirements
+        physicsState.player = { ...state.player, rotation: 0 };
+        physicsState.bot = { ...state.bot, rotation: 0 };
         physicsState.balls = state.balls;
         // Merge events
         if (state.events && state.events.length > 0) {
             const lastId = physicsState.events[physicsState.events.length - 1]?.id;
-            const newEvents = state.events.filter((e: any) => e.id !== lastId); 
+            const newEvents = state.events.filter((e: any) => e.id !== lastId);
             physicsState.events = [...physicsState.events, ...newEvents].slice(-20);
         }
     }
