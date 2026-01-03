@@ -91,7 +91,8 @@ function runSetupCommands() {
     "bun add @types/canvas-confetti",
     "bun add peerjs",
     "bun add @cloudflare/workers-types",
-    "bun add @radix-ui/react-tabs"
+    "bun add @radix-ui/react-tabs",
+    "bun add -d vite-plugin-pwa"
 ];
     
     if (commands.length === 0) {
