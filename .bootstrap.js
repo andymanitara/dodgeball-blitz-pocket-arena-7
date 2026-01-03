@@ -89,7 +89,8 @@ function runSetupCommands() {
     "bun add zustand",
     "bun add canvas-confetti",
     "bun add @types/canvas-confetti",
-    "bun add peerjs"
+    "bun add peerjs",
+    "bun add @cloudflare/workers-types"
 ];
     
     if (commands.length === 0) {
