@@ -1,9 +1,9 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text, Box } from '@react-three/drei';
 import { physicsState, useGameStore } from '@/store/useGameStore';
 import * as THREE from 'three';
-const Explosion = ({ x, z, color }: { x: number, z: number, color: string }) => {
+const Explosion = ({ x, z, y = 1, color }: { x: number, z: number, y?: number, color: string }) => {
   const isPaused = useGameStore(s => s.isPaused);
   // Generate random particle config once
   const particles = useMemo(() => {
@@ -30,7 +30,7 @@ const Explosion = ({ x, z, color }: { x: number, z: number, color: string }) => 
         mesh.position.y += p.vy * delta;
         mesh.position.z += p.vz * delta;
         // Gravity
-        p.vy -= 25 * delta; 
+        p.vy -= 25 * delta;
         // Rotation
         mesh.rotation.x += p.rotationSpeed.x * delta;
         mesh.rotation.y += p.rotationSpeed.y * delta;
@@ -45,7 +45,7 @@ const Explosion = ({ x, z, color }: { x: number, z: number, color: string }) => 
     });
   });
   return (
-    <group ref={group} position={[x, 1, z]}>
+    <group ref={group} position={[x, y, z]}>
         {particles.map((p, i) => (
             <Box key={i} args={[p.scale, p.scale, p.scale]} position={[0,0,0]}>
                 <meshStandardMaterial color={p.color} emissive={p.color} emissiveIntensity={0.5} />
@@ -72,10 +72,6 @@ function Particles({ events }: { events: any[] }) {
 function FloatingText({ x, z, text, time }: { x: number, z: number, text: string, time: number }) {
     const isPaused = useGameStore(s => s.isPaused);
     if (!text) return null;
-    // We need to track elapsed time manually if we want to pause animations correctly,
-    // but for simple floating text, using Date.now() is acceptable as long as we accept it might jump if paused.
-    // However, to prevent it from disappearing while paused, we should ideally use a game time.
-    // For MVP, we'll stick to Date.now() but extend the lifetime slightly.
     const age = Date.now() - time;
     if (age > 1000) return null;
     const progress = age / 1000;
@@ -102,9 +98,37 @@ function FloatingText({ x, z, text, time }: { x: number, z: number, text: string
         </Text>
     );
 }
+function Fireworks() {
+    const [explosions, setExplosions] = useState<{id: number, x: number, z: number, color: string, time: number}[]>([]);
+    const isPaused = useGameStore(s => s.isPaused);
+    useFrame((state) => {
+        if (isPaused) return;
+        const now = state.clock.elapsedTime;
+        // Randomly add explosion (approx 3 per second)
+        if (Math.random() < 0.05) { 
+             const id = Math.random();
+             const x = (Math.random() - 0.5) * 12;
+             const z = (Math.random() - 0.5) * 12;
+             const colors = ['#ef4444', '#3b82f6', '#eab308', '#10b981', '#8b5cf6', '#f472b6'];
+             const color = colors[Math.floor(Math.random() * colors.length)];
+             setExplosions(prev => [...prev, { id, x, z, color, time: now }]);
+        }
+        // Remove old explosions (older than 2s)
+        setExplosions(prev => prev.filter(e => now - e.time < 2));
+    });
+    return (
+        <group position={[0, 5, 0]}> 
+            {explosions.map(e => (
+                <Explosion key={e.id} x={e.x} z={e.z} y={0} color={e.color} />
+            ))}
+        </group>
+    );
+}
 export function Effects() {
   const [events, setEvents] = React.useState<any[]>([]);
   const isPaused = useGameStore(s => s.isPaused);
+  const phase = useGameStore(s => s.phase);
+  const winner = useGameStore(s => s.winner);
   useFrame(() => {
     if (isPaused) return;
     const now = Date.now();
@@ -114,12 +138,14 @@ export function Effects() {
         setEvents([...activeEvents]);
     }
   });
+  const showFireworks = phase === 'match_over' && winner === 'player';
   return (
     <group>
       <Particles events={events} />
       {events.map(e => (
         e.text ? <FloatingText key={e.id} x={e.x} z={e.z} text={e.text} time={e.time} /> : null
       ))}
+      {showFireworks && <Fireworks />}
     </group>
   );
 }

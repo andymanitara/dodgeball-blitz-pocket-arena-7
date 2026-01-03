@@ -7,8 +7,9 @@ import { GameHUD } from '@/components/ui/GameHUD';
 import { HowToPlayModal } from '@/components/ui/HowToPlayModal';
 import { SettingsModal } from '@/components/ui/SettingsModal';
 import { ProfileCreation } from '@/components/ui/ProfileCreation';
+import { GameLogic } from '@/components/GameLogic';
 import { Button } from '@/components/ui/button';
-import { Trophy, Skull, Play, RotateCcw, HelpCircle, Settings, Pause, LogOut, User } from 'lucide-react';
+import { Trophy, Skull, Play, RotateCcw, HelpCircle, Settings, Pause, LogOut, User, Medal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 export function HomePage() {
   const phase = useGameStore(s => s.phase);
@@ -22,6 +23,7 @@ export function HomePage() {
   const botScore = useGameStore(s => s.botScore);
   const isAuthenticated = useUserStore(s => s.isAuthenticated);
   const username = useUserStore(s => s.username);
+  const stats = useUserStore(s => s.stats);
   const logout = useUserStore(s => s.logout);
   const [activeModal, setActiveModal] = useState<'none' | 'howto' | 'settings'>('none');
   // If not authenticated, show Profile Creation only
@@ -30,6 +32,8 @@ export function HomePage() {
   }
   return (
     <div className="fixed inset-0 w-full h-[100dvh] bg-slate-900 overflow-hidden touch-none select-none">
+      {/* Logic Controller */}
+      <GameLogic />
       {/* 3D Scene Layer */}
       <div className="absolute inset-0 z-0">
         <Scene />
@@ -51,7 +55,7 @@ export function HomePage() {
               <motion.div
                 initial={{ y: -50 }}
                 animate={{ y: 0 }}
-                className="mb-8"
+                className="mb-6"
               >
                   <h1 className="text-6xl md:text-8xl font-black text-white mb-2 tracking-tighter drop-shadow-2xl italic">
                     DODGEBALL<br/>
@@ -59,14 +63,33 @@ export function HomePage() {
                   </h1>
                   <p className="text-slate-300 text-xl font-medium">Pocket Arena</p>
               </motion.div>
+              {/* User Profile & Stats */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
-                className="mb-8 flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full"
+                className="mb-8 flex flex-col items-center gap-2"
               >
-                <User className="w-5 h-5 text-blue-400" />
-                <span className="text-white font-bold">Welcome back, {username}!</span>
+                <div className="flex items-center gap-2 bg-white/10 px-6 py-2 rounded-full border border-white/10">
+                    <User className="w-5 h-5 text-blue-400" />
+                    <span className="text-white font-bold text-lg">{username}</span>
+                </div>
+                <div className="flex items-center gap-4 text-sm font-medium">
+                    <div className="flex items-center gap-1 text-green-400">
+                        <Trophy className="w-4 h-4" />
+                        <span>Wins: {stats.wins}</span>
+                    </div>
+                    <div className="w-1 h-1 bg-slate-500 rounded-full" />
+                    <div className="flex items-center gap-1 text-red-400">
+                        <Skull className="w-4 h-4" />
+                        <span>Losses: {stats.losses}</span>
+                    </div>
+                    <div className="w-1 h-1 bg-slate-500 rounded-full" />
+                    <div className="flex items-center gap-1 text-slate-400">
+                        <Medal className="w-4 h-4" />
+                        <span>Total: {stats.matches}</span>
+                    </div>
+                </div>
               </motion.div>
               <motion.div
                 whileHover={{ scale: 1.05 }}

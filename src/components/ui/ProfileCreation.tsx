@@ -2,7 +2,7 @@ import React, { useState, Suspense, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stage } from '@react-three/drei';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, User, Play } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Play, Dices } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -60,6 +60,13 @@ export function ProfileCreation() {
       return next;
     });
   };
+  const generateRandomName = () => {
+    const prefixes = ["Speedy", "Dodger", "Ace", "Shadow", "Blaze", "Rocket", "Ninja", "Viper", "Ghost", "Flash"];
+    const randomPrefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const randomNum = Math.floor(Math.random() * 99) + 1;
+    setName(`${randomPrefix}${randomNum}`);
+    setError('');
+  };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 p-4">
       <motion.div
@@ -98,18 +105,29 @@ export function ProfileCreation() {
               <label className="text-slate-400 text-sm font-bold uppercase tracking-wider ml-1">
                 Codename
               </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
-                <Input
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    setError('');
-                  }}
-                  placeholder="Enter your name..."
-                  className="pl-10 bg-slate-900/50 border-slate-600 text-white h-12 text-lg focus:ring-blue-500 focus:border-blue-500"
-                  maxLength={12}
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
+                    <Input
+                    value={name}
+                    onChange={(e) => {
+                        setName(e.target.value);
+                        setError('');
+                    }}
+                    placeholder="Enter your name..."
+                    className="pl-10 bg-slate-900/50 border-slate-600 text-white h-12 text-lg focus:ring-blue-500 focus:border-blue-500"
+                    maxLength={12}
+                    />
+                </div>
+                <Button 
+                    variant="secondary" 
+                    size="icon" 
+                    className="h-12 w-12 bg-slate-800 border border-slate-600 hover:bg-slate-700"
+                    onClick={generateRandomName}
+                    title="Random Name"
+                >
+                    <Dices className="w-6 h-6 text-blue-400" />
+                </Button>
               </div>
               {error && <p className="text-red-400 text-sm ml-1 animate-pulse">{error}</p>}
             </div>
