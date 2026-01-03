@@ -158,7 +158,7 @@ class PhysicsEngine {
     }
     // State Machine
     switch (this.botState) {
-        case BotState.DODGING:
+        case BotState.DODGING: {
             this.botActionTimer -= dt;
             if (this.botActionTimer <= 0) {
                 this.botState = BotState.IDLE;
@@ -166,7 +166,8 @@ class PhysicsEngine {
                 this.bot.vz = 0;
             }
             break;
-        case BotState.IDLE:
+        }
+        case BotState.IDLE: {
             if (this.bot.holdingBallId !== null) {
                 this.botState = BotState.ATTACKING;
                 this.botActionTimer = 0.5 + Math.random() * 1.0; // Aim time
@@ -174,7 +175,8 @@ class PhysicsEngine {
                 this.botState = BotState.SEEKING;
             }
             break;
-        case BotState.SEEKING:
+        }
+        case BotState.SEEKING: {
             if (this.bot.holdingBallId !== null) {
                 this.botState = BotState.ATTACKING;
                 this.botActionTimer = 0.5 + Math.random() * 1.0;
@@ -212,7 +214,8 @@ class PhysicsEngine {
                 }
             }
             break;
-        case BotState.ATTACKING:
+        }
+        case BotState.ATTACKING: {
             // Move towards throwing position (e.g., z = -3)
             const targetZ = -3;
             const dz = targetZ - this.bot.z;
@@ -230,6 +233,7 @@ class PhysicsEngine {
                 this.botState = BotState.IDLE;
             }
             break;
+        }
     }
   }
   integratePhysics(dt: number) {

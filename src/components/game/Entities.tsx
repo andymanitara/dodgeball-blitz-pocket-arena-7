@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Sphere, Capsule } from '@react-three/drei';
+import { Sphere, Capsule, Box } from '@react-three/drei';
 import { physicsState } from '@/store/useGameStore';
 import * as THREE from 'three';
 export function Entities() {
@@ -14,6 +14,11 @@ export function Entities() {
     // Sync Player
     if (playerRef.current) {
       playerRef.current.position.set(physicsState.player.x, 0, physicsState.player.z);
+      // Stumble Animation (Rotate back if hit)
+      // Player faces -Z (forward in game view). "Back" is +Z.
+      // Rotation +X tilts top towards +Z.
+      const targetRotX = physicsState.player.isHit ? Math.PI / 4 : 0;
+      playerRef.current.rotation.x = THREE.MathUtils.lerp(playerRef.current.rotation.x, targetRotX, 0.1);
       // Hit Flash
       if (playerMatRef.current) {
         if (physicsState.player.isHit) {
@@ -29,6 +34,11 @@ export function Entities() {
     // Sync Bot
     if (botRef.current) {
       botRef.current.position.set(physicsState.bot.x, 0, physicsState.bot.z);
+      // Stumble Animation (Rotate back if hit)
+      // Bot faces +Z. "Back" is -Z.
+      // Rotation -X tilts top towards -Z.
+      const targetRotX = physicsState.bot.isHit ? -Math.PI / 4 : 0;
+      botRef.current.rotation.x = THREE.MathUtils.lerp(botRef.current.rotation.x, targetRotX, 0.1);
       // Hit Flash
       if (botMatRef.current) {
         if (physicsState.bot.isHit) {
@@ -61,6 +71,7 @@ export function Entities() {
         <Capsule args={[0.4, 1, 4, 8]} position={[0, 0.9, 0]} castShadow>
           <meshStandardMaterial ref={playerMatRef} color="#3b82f6" />
         </Capsule>
+        {/* Eyes/Visor for direction */}
         <Box args={[0.3, 0.1, 0.1]} position={[0, 1.2, -0.35]}>
             <meshStandardMaterial color="white" />
         </Box>
@@ -70,6 +81,7 @@ export function Entities() {
         <Capsule args={[0.4, 1, 4, 8]} position={[0, 0.9, 0]} castShadow>
           <meshStandardMaterial ref={botMatRef} color="#ef4444" />
         </Capsule>
+        {/* Eyes/Visor for direction */}
         <Box args={[0.3, 0.1, 0.1]} position={[0, 1.2, 0.35]}>
             <meshStandardMaterial color="black" />
         </Box>
@@ -90,12 +102,4 @@ export function Entities() {
       ))}
     </group>
   );
-}
-function Box(props: any) {
-    return (
-        <mesh {...props}>
-            <boxGeometry args={props.args} />
-            {props.children}
-        </mesh>
-    )
 }

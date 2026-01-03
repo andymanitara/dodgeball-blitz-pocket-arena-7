@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { Scene } from '@/components/game/Scene';
 import { TouchControls } from '@/components/ui/TouchControls';
 import { GameHUD } from '@/components/ui/GameHUD';
+import { HowToPlayModal } from '@/components/ui/HowToPlayModal';
+import { SettingsModal } from '@/components/ui/SettingsModal';
 import { Button } from '@/components/ui/button';
-import { Trophy, Skull, Play, RotateCcw } from 'lucide-react';
+import { Trophy, Skull, Play, RotateCcw, HelpCircle, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 export function HomePage() {
   const phase = useGameStore(s => s.phase);
@@ -14,6 +16,7 @@ export function HomePage() {
   const winner = useGameStore(s => s.winner);
   const playerScore = useGameStore(s => s.playerScore);
   const botScore = useGameStore(s => s.botScore);
+  const [activeModal, setActiveModal] = useState<'none' | 'howto' | 'settings'>('none');
   return (
     <div className="w-full h-screen bg-slate-900 relative overflow-hidden touch-none select-none">
       {/* 3D Scene Layer */}
@@ -28,13 +31,13 @@ export function HomePage() {
         {/* Main Menu Overlay */}
         <AnimatePresence>
           {phase === 'menu' && (
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center pointer-events-auto p-6 text-center"
             >
-              <motion.div 
+              <motion.div
                 initial={{ y: -50 }}
                 animate={{ y: 0 }}
                 className="mb-12"
@@ -48,6 +51,7 @@ export function HomePage() {
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                className="mb-8"
               >
                   <Button
                     size="lg"
@@ -57,6 +61,28 @@ export function HomePage() {
                     <Play className="mr-2 w-8 h-8 fill-current" /> PLAY NOW
                   </Button>
               </motion.div>
+              <div className="flex gap-4">
+                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                    <Button 
+                        variant="secondary" 
+                        size="icon" 
+                        className="w-14 h-14 rounded-full bg-slate-800 border-2 border-slate-600 hover:bg-slate-700"
+                        onClick={() => setActiveModal('howto')}
+                    >
+                        <HelpCircle className="w-8 h-8 text-slate-300" />
+                    </Button>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                    <Button 
+                        variant="secondary" 
+                        size="icon" 
+                        className="w-14 h-14 rounded-full bg-slate-800 border-2 border-slate-600 hover:bg-slate-700"
+                        onClick={() => setActiveModal('settings')}
+                    >
+                        <Settings className="w-8 h-8 text-slate-300" />
+                    </Button>
+                </motion.div>
+              </div>
               <div className="mt-8 text-slate-400 text-sm max-w-xs">
                 <p>Drag left to move • Tap buttons to throw & dodge</p>
               </div>
@@ -66,7 +92,7 @@ export function HomePage() {
         {/* Round/Match Over Overlay */}
         <AnimatePresence>
           {(phase === 'round_over' || phase === 'match_over') && (
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
@@ -75,8 +101,8 @@ export function HomePage() {
               {phase === 'match_over' ? (
                 <div className="text-center">
                   {winner === 'player' ? (
-                    <motion.div 
-                        animate={{ rotate: [0, -10, 10, 0] }} 
+                    <motion.div
+                        animate={{ rotate: [0, -10, 10, 0] }}
                         transition={{ repeat: Infinity, duration: 2 }}
                     >
                         <Trophy className="w-32 h-32 text-yellow-400 mx-auto mb-6 drop-shadow-glow" />
@@ -107,6 +133,11 @@ export function HomePage() {
               )}
             </motion.div>
           )}
+        </AnimatePresence>
+        {/* Modals */}
+        <AnimatePresence>
+            {activeModal === 'howto' && <HowToPlayModal onClose={() => setActiveModal('none')} />}
+            {activeModal === 'settings' && <SettingsModal onClose={() => setActiveModal('none')} />}
         </AnimatePresence>
       </div>
     </div>

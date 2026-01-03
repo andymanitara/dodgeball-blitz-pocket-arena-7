@@ -9,6 +9,11 @@ export interface GameState {
   winner: 'player' | 'bot' | null;
   shakeIntensity: number;
   currentRound: number;
+  settings: {
+    sound: boolean;
+    music: boolean;
+    vibration: boolean;
+  };
   // Actions
   setPhase: (phase: GamePhase) => void;
   startGame: () => void;
@@ -19,6 +24,7 @@ export interface GameState {
   winRound: (winner: 'player' | 'bot') => void;
   addShake: (amount: number) => void;
   decayShake: () => void;
+  toggleSetting: (setting: keyof GameState['settings']) => void;
 }
 // Mutable input state for high-frequency updates without re-renders
 export const gameInput = {
@@ -39,7 +45,7 @@ export const physicsState = {
   player: { x: 0, z: 6, rotation: 0, isHit: false },
   bot: { x: 0, z: -6, rotation: 0, isHit: false },
   balls: [] as Array<{ id: number; x: number; y: number; z: number; state: 'idle' | 'held' | 'flying' }>,
-  events: [] as GameEvent[], 
+  events: [] as GameEvent[],
 };
 export const useGameStore = create<GameState>((set) => ({
   phase: 'menu',
@@ -50,6 +56,11 @@ export const useGameStore = create<GameState>((set) => ({
   winner: null,
   shakeIntensity: 0,
   currentRound: 1,
+  settings: {
+    sound: true,
+    music: true,
+    vibration: true,
+  },
   setPhase: (phase) => set({ phase }),
   startGame: () => set({
     phase: 'playing',
@@ -105,5 +116,11 @@ export const useGameStore = create<GameState>((set) => ({
   })),
   decayShake: () => set((state) => ({
     shakeIntensity: Math.max(0, state.shakeIntensity * 0.9)
+  })),
+  toggleSetting: (setting) => set((state) => ({
+    settings: {
+      ...state.settings,
+      [setting]: !state.settings[setting]
+    }
   })),
 }));
