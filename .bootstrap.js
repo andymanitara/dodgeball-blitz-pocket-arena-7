@@ -90,7 +90,8 @@ function runSetupCommands() {
     "bun add canvas-confetti",
     "bun add @types/canvas-confetti",
     "bun add peerjs",
-    "bun add @cloudflare/workers-types"
+    "bun add @cloudflare/workers-types",
+    "bun add @radix-ui/react-tabs"
 ];
     
     if (commands.length === 0) {
