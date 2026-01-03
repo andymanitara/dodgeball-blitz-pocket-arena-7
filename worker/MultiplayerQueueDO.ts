@@ -38,11 +38,12 @@ export class MultiplayerQueueDO extends DurableObject {
       const p1 = this.players.shift()!;
       const p2 = this.players.shift()!;
       // Check if sockets are still open
-      if (p1.ws.readyState !== WebSocket.READY_STATE_OPEN) {
+      // Use integer literal 1 for OPEN state as static properties aren't available in this environment
+      if (p1.ws.readyState !== 1) {
         this.players.unshift(p2); // Put p2 back
         continue;
       }
-      if (p2.ws.readyState !== WebSocket.READY_STATE_OPEN) {
+      if (p2.ws.readyState !== 1) {
         this.players.unshift(p1); // Put p1 back
         continue;
       }
