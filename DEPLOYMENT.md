@@ -43,7 +43,7 @@ You must bind a Durable Object namespace to your worker. Add the following to yo
 }
 ```
 ### Step 2: Add the Durable Object Class
-Create a file named `worker/MultiplayerQueueDO.ts` with the following content. This version supports **Persistent Connections** and **Relay Mode**, allowing gameplay even if P2P fails.
+Create a file named `worker/MultiplayerQueueDO.ts` with the following content:
 ```typescript
 import { DurableObject } from "cloudflare:workers";
 export interface Env {
@@ -53,7 +53,6 @@ interface Player {
   id: string;
   ws: WebSocket;
   joinedAt: number;
-  opponent?: Player;
 }
 export class MultiplayerQueueDO extends DurableObject {
   private players: Player[] = [];
@@ -75,55 +74,25 @@ export class MultiplayerQueueDO extends DurableObject {
     const playerId = crypto.randomUUID();
     const player: Player = { id: playerId, ws, joinedAt: Date.now() };
     this.players.push(player);
-    ws.addEventListener('message', (event) => {
-      try {
-        const data = JSON.parse(event.data as string);
-        // RELAY LOGIC: Forward message to opponent if linked
-        if (data.type === 'RELAY' && player.opponent) {
-          if (player.opponent.ws.readyState === 1) { // 1 = OPEN
-             player.opponent.ws.send(JSON.stringify({ type: 'RELAY', payload: data.payload }));
-          }
-        }
-      } catch (e) {
-        // Ignore invalid messages
-      }
-    });
     ws.addEventListener('close', () => {
-      // Remove from queue if they were queuing
       this.players = this.players.filter(p => p.id !== playerId);
-      // Notify opponent if matched
-      if (player.opponent) {
-        if (player.opponent.ws.readyState === 1) {
-            try {
-                player.opponent.ws.send(JSON.stringify({ type: 'PEER_DISCONNECTED' }));
-            } catch (e) {
-                // Ignore
-            }
-        }
-        // Unlink
-        player.opponent.opponent = undefined;
-      }
     });
     this.matchmake();
   }
   matchmake() {
     // Simple FIFO matchmaking
-    // Filter out any stale/closed connections from the queue before matching
-    this.players = this.players.filter(p => p.ws.readyState === 1);
     while (this.players.length >= 2) {
       const p1 = this.players.shift()!;
       const p2 = this.players.shift()!;
-      // Link players for Relay
-      p1.opponent = p2;
-      p2.opponent = p1;
-      const gameCode = crypto.randomUUID().substring(0, 8).toUpperCase();
-      try {
-        // Notify players - DO NOT CLOSE SOCKETS
-        p1.ws.send(JSON.stringify({ type: 'MATCH_FOUND', role: 'host', code: gameCode }));
-        p2.ws.send(JSON.stringify({ type: 'MATCH_FOUND', role: 'client', code: gameCode }));
-      } catch (e) {
-        console.error("Error sending match data", e);
-      }
+      // Generate a game code for them to use via PeerJS
+      const gameCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      // Notify Player 1 (Host)
+      p1.ws.send(JSON.stringify({ type: 'MATCH_FOUND', role: 'host', code: gameCode }));
+      // Notify Player 2 (Client)
+      p2.ws.send(JSON.stringify({ type: 'MATCH_FOUND', role: 'client', code: gameCode }));
+      // Close queue connections
+      p1.ws.close();
+      p2.ws.close();
     }
   }
 }
@@ -139,16 +108,10 @@ Map a URL endpoint to your Durable Object.
 ```typescript
 import { Hono } from "hono";
 import { Env } from './core-utils';
-// Extend the base Env to include the Durable Object binding
-interface AppEnv extends Env {
-    MULTIPLAYER_QUEUE: DurableObjectNamespace;
-}
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
     app.get('/api/queue', async (c) => {
-        // Cast the environment to AppEnv to access the Durable Object binding
-        const env = c.env as unknown as AppEnv;
-        const id = env.MULTIPLAYER_QUEUE.idFromName('global-queue');
-        const stub = env.MULTIPLAYER_QUEUE.get(id);
+        const id = c.env.MULTIPLAYER_QUEUE.idFromName('global-queue');
+        const stub = c.env.MULTIPLAYER_QUEUE.get(id);
         return stub.fetch(c.req.raw);
     });
 }

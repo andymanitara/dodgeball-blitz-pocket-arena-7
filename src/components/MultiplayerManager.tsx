@@ -25,41 +25,8 @@ export function MultiplayerManager() {
   const setRematchRequested = useMultiplayerStore(s => s.setRematchRequested);
   const startGame = useGameStore(s => s.startGame);
   const resetMatch = useGameStore(s => s.resetMatch);
-  // Handle Incoming Connection (Host Side)
-  const handleIncomingConnection = useCallback((conn: DataConnection) => {
-    connRef.current = conn;
-    setStatus('connecting');
-    conn.on('open', () => {
-      console.log('Connected to client:', conn.peer);
-      setStatus('connected');
-      setOpponentId(conn.peer);
-      // Host starts game immediately upon connection
-      startGame('multiplayer');
-      physicsEngine.setMode('host');
-      conn.send({ type: 'start' });
-      toast.success('Client connected! Starting game...');
-    });
-    setupConnectionListeners(conn, 'host');
-  }, [setStatus, setOpponentId, startGame]);
-  // Handle Outgoing Connection (Client Side)
-  const connectToHost = useCallback((hostCode: string) => {
-    if (!peerRef.current) return;
-    const hostId = `${ID_PREFIX}${hostCode}`;
-    console.log('Connecting to host:', hostId);
-    setStatus('connecting');
-    const conn = peerRef.current.connect(hostId);
-    connRef.current = conn;
-    conn.on('open', () => {
-      console.log('Connected to host:', conn.peer);
-      setStatus('connected');
-      setOpponentId(conn.peer);
-      physicsEngine.setMode('client');
-      toast.success('Connected to Host!');
-    });
-    setupConnectionListeners(conn, 'client');
-  }, [setStatus, setOpponentId]);
-  // Shared Connection Listeners
-  const setupConnectionListeners = (conn: DataConnection, myRole: 'host' | 'client') => {
+  // 1. Define setupConnectionListeners FIRST (wrapped in useCallback)
+  const setupConnectionListeners = useCallback((conn: DataConnection, myRole: 'host' | 'client') => {
     conn.on('data', (data: any) => {
       if (myRole === 'host') {
         if (data.type === 'input') physicsEngine.setRemoteInput(data.payload);
@@ -96,7 +63,40 @@ export function MultiplayerManager() {
       setError(err.message);
       toast.error('Connection lost');
     });
-  };
+  }, [setStatus, setError, resetMatch, resetMultiplayer, setOpponentRematchRequested, setRematchRequested, startGame]);
+  // 2. Handle Incoming Connection (Host Side)
+  const handleIncomingConnection = useCallback((conn: DataConnection) => {
+    connRef.current = conn;
+    setStatus('connecting');
+    conn.on('open', () => {
+      console.log('Connected to client:', conn.peer);
+      setStatus('connected');
+      setOpponentId(conn.peer);
+      // Host starts game immediately upon connection
+      startGame('multiplayer');
+      physicsEngine.setMode('host');
+      conn.send({ type: 'start' });
+      toast.success('Client connected! Starting game...');
+    });
+    setupConnectionListeners(conn, 'host');
+  }, [setStatus, setOpponentId, startGame, setupConnectionListeners]);
+  // 3. Handle Outgoing Connection (Client Side)
+  const connectToHost = useCallback((hostCode: string) => {
+    if (!peerRef.current) return;
+    const hostId = `${ID_PREFIX}${hostCode}`;
+    console.log('Connecting to host:', hostId);
+    setStatus('connecting');
+    const conn = peerRef.current.connect(hostId);
+    connRef.current = conn;
+    conn.on('open', () => {
+      console.log('Connected to host:', conn.peer);
+      setStatus('connected');
+      setOpponentId(conn.peer);
+      physicsEngine.setMode('client');
+      toast.success('Connected to Host!');
+    });
+    setupConnectionListeners(conn, 'client');
+  }, [setStatus, setOpponentId, setupConnectionListeners]);
   // Initialize Peer when Role Changes
   useEffect(() => {
     // If no role, cleanup and return
@@ -174,8 +174,8 @@ export function MultiplayerManager() {
     if (role !== 'client') return;
     const interval = setInterval(() => {
       if (connRef.current?.open) {
-        connRef.current.send({
-          type: 'input',
+        connRef.current.send({ 
+          type: 'input', 
           payload: {
             joystick: gameInput.joystick,
             isThrowing: gameInput.isThrowing,
