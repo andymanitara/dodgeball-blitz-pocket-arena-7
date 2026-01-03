@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
+import { useUserStore } from '@/store/useUserStore';
 import { Heart, Pause } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,6 +17,7 @@ export function GameHUD() {
   const setCountdown = useGameStore(s => s.setCountdown);
   const togglePause = useGameStore(s => s.togglePause);
   const isPaused = useGameStore(s => s.isPaused);
+  const username = useUserStore(s => s.username);
   const [showRoundStart, setShowRoundStart] = useState(false);
   const [showGo, setShowGo] = useState(false);
   const prevCountdown = useRef(countdown);
@@ -67,8 +69,8 @@ export function GameHUD() {
               </motion.div>
             ))}
           </div>
-          <div className="bg-blue-600/90 backdrop-blur text-white px-4 py-1 rounded-full font-black text-lg shadow-lg self-start border-2 border-blue-400">
-            YOU: {playerScore}
+          <div className="bg-blue-600/90 backdrop-blur text-white px-4 py-1 rounded-full font-black text-lg shadow-lg self-start border-2 border-blue-400 max-w-[150px] truncate">
+            {username.toUpperCase()}: {playerScore}
           </div>
         </div>
         {/* Pause Button (Center) */}

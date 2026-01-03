@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useGameStore } from '@/store/useGameStore';
+import { useUserStore } from '@/store/useUserStore';
 import { Scene } from '@/components/game/Scene';
 import { TouchControls } from '@/components/ui/TouchControls';
 import { GameHUD } from '@/components/ui/GameHUD';
 import { HowToPlayModal } from '@/components/ui/HowToPlayModal';
 import { SettingsModal } from '@/components/ui/SettingsModal';
+import { ProfileCreation } from '@/components/ui/ProfileCreation';
 import { Button } from '@/components/ui/button';
-import { Trophy, Skull, Play, RotateCcw, HelpCircle, Settings, Pause, LogOut } from 'lucide-react';
+import { Trophy, Skull, Play, RotateCcw, HelpCircle, Settings, Pause, LogOut, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 export function HomePage() {
   const phase = useGameStore(s => s.phase);
@@ -18,7 +20,14 @@ export function HomePage() {
   const winner = useGameStore(s => s.winner);
   const playerScore = useGameStore(s => s.playerScore);
   const botScore = useGameStore(s => s.botScore);
+  const isAuthenticated = useUserStore(s => s.isAuthenticated);
+  const username = useUserStore(s => s.username);
+  const logout = useUserStore(s => s.logout);
   const [activeModal, setActiveModal] = useState<'none' | 'howto' | 'settings'>('none');
+  // If not authenticated, show Profile Creation only
+  if (!isAuthenticated) {
+    return <ProfileCreation />;
+  }
   return (
     <div className="fixed inset-0 w-full h-[100dvh] bg-slate-900 overflow-hidden touch-none select-none">
       {/* 3D Scene Layer */}
@@ -42,13 +51,22 @@ export function HomePage() {
               <motion.div
                 initial={{ y: -50 }}
                 animate={{ y: 0 }}
-                className="mb-12"
+                className="mb-8"
               >
                   <h1 className="text-6xl md:text-8xl font-black text-white mb-2 tracking-tighter drop-shadow-2xl italic">
                     DODGEBALL<br/>
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-600">BLITZ</span>
                   </h1>
                   <p className="text-slate-300 text-xl font-medium">Pocket Arena</p>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="mb-8 flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full"
+              >
+                <User className="w-5 h-5 text-blue-400" />
+                <span className="text-white font-bold">Welcome back, {username}!</span>
               </motion.div>
               <motion.div
                 whileHover={{ scale: 1.05 }}
@@ -84,6 +102,17 @@ export function HomePage() {
                         <Settings className="w-8 h-8 text-slate-300" />
                     </Button>
                 </motion.div>
+                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                    <Button
+                        variant="secondary"
+                        size="icon"
+                        className="w-14 h-14 rounded-full bg-red-900/50 border-2 border-red-800 hover:bg-red-900"
+                        onClick={logout}
+                        title="Logout"
+                    >
+                        <LogOut className="w-6 h-6 text-red-300" />
+                    </Button>
+                </motion.div>
               </div>
               <div className="mt-8 text-slate-400 text-sm max-w-xs">
                 <p>Drag left to move • Tap buttons to throw & dodge</p>
@@ -103,21 +132,21 @@ export function HomePage() {
                     <div className="bg-slate-900/90 border border-slate-700 p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full mx-4">
                         <h2 className="text-4xl font-black text-white mb-8 tracking-widest">PAUSED</h2>
                         <div className="space-y-4">
-                            <Button 
-                                onClick={togglePause} 
+                            <Button
+                                onClick={togglePause}
                                 className="w-full text-xl py-6 bg-blue-600 hover:bg-blue-500 rounded-xl"
                             >
                                 <Play className="mr-2 w-5 h-5 fill-current" /> RESUME
                             </Button>
-                            <Button 
-                                onClick={() => setActiveModal('settings')} 
+                            <Button
+                                onClick={() => setActiveModal('settings')}
                                 variant="secondary"
                                 className="w-full text-xl py-6 bg-slate-800 hover:bg-slate-700 rounded-xl"
                             >
                                 <Settings className="mr-2 w-5 h-5" /> SETTINGS
                             </Button>
-                            <Button 
-                                onClick={resetMatch} 
+                            <Button
+                                onClick={resetMatch}
                                 variant="destructive"
                                 className="w-full text-xl py-6 bg-red-600 hover:bg-red-500 rounded-xl"
                             >

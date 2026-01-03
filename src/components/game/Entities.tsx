@@ -2,8 +2,9 @@ import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Sphere, Trail, Box } from '@react-three/drei';
 import { physicsState, useGameStore } from '@/store/useGameStore';
+import { useUserStore } from '@/store/useUserStore';
 import * as THREE from 'three';
-const Hair = ({ style }: { style: number }) => {
+export const Hair = ({ style }: { style: number }) => {
     const color = useMemo(() => {
         const colors = ['#000000', '#3f2a14', '#5e3a18', '#8b4513', '#d2691e'];
         return colors[Math.floor(Math.random() * colors.length)];
@@ -49,7 +50,7 @@ const Hair = ({ style }: { style: number }) => {
             return null;
     }
 };
-const CharacterModel = ({ entity, color, type }: { entity: any, color: string, type: 'player' | 'bot' }) => {
+export const CharacterModel = ({ entity, color, type, hairStyle }: { entity: any, color: string, type: 'player' | 'bot', hairStyle?: number }) => {
   const group = useRef<THREE.Group>(null);
   const bodyGroup = useRef<THREE.Group>(null);
   const leftArm = useRef<THREE.Mesh>(null);
@@ -59,8 +60,9 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
   // Animation State
   const prevHoldingBallId = useRef<number | null>(null);
   const throwTimer = useRef(0);
-  // Randomize hair style on mount
-  const hairStyle = useMemo(() => Math.floor(Math.random() * 3), []);
+  // Randomize hair style on mount if not provided
+  const randomHair = useMemo(() => Math.floor(Math.random() * 3), []);
+  const finalHairStyle = hairStyle !== undefined ? hairStyle : randomHair;
   // Define colors
   const skinColor = '#ffdbac';
   const shortsColor = type === 'player' ? '#f8fafc' : '#1e293b'; // White for player, Dark for bot
@@ -210,7 +212,7 @@ const CharacterModel = ({ entity, color, type }: { entity: any, color: string, t
                     <boxGeometry args={[0.35, 0.35, 0.35]} />
                 </mesh>
                 {/* Hair */}
-                <Hair style={hairStyle} />
+                <Hair style={finalHairStyle} />
                 {/* Headband */}
                 <mesh position={[0, 0.1, 0]} castShadow material={materials.headband}>
                      <boxGeometry args={[0.36, 0.08, 0.36]} />
@@ -334,12 +336,14 @@ const Ball = ({ id }: { id: number }) => {
   );
 };
 export function Entities() {
+  const playerHair = useUserStore(s => s.hairStyle);
   return (
     <group>
       <CharacterModel
         entity={physicsState.player}
         color="#3b82f6"
         type="player"
+        hairStyle={playerHair}
       />
       <CharacterModel
         entity={physicsState.bot}
