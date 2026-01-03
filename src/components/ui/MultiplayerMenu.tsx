@@ -42,6 +42,18 @@ export function MultiplayerMenu({ onClose }: MultiplayerMenuProps) {
       // We don't clear error immediately here so it stays visible in the UI if needed
     }
   }, [error]);
+  // Cleanup on unmount: Leave queue if still queuing
+  useEffect(() => {
+    return () => {
+      const { isQueuing, peerId, leaveQueue, setIsQueuing } = useMultiplayerStore.getState();
+      if (isQueuing && peerId) {
+        console.log('MultiplayerMenu unmounted while queuing, leaving queue');
+        leaveQueue(peerId);
+        setIsQueuing(false);
+        toast.info('Search cancelled');
+      }
+    };
+  }, []);
   const handleFindMatch = async () => {
     if (!peerId) {
       toast.error('Cannot join queue: Not connected to server');
@@ -154,8 +166,8 @@ export function MultiplayerMenu({ onClose }: MultiplayerMenuProps) {
                             {isConnecting ? "Connecting..." : "Ready to Battle?"}
                         </h3>
                         <p className="text-slate-400 text-sm">
-                            {isConnecting 
-                                ? "Establishing connection to matchmaking server..." 
+                            {isConnecting
+                                ? "Establishing connection to matchmaking server..."
                                 : "Join the global queue and prove your skills against real players."}
                         </p>
                     </div>

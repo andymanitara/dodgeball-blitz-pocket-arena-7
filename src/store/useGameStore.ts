@@ -109,6 +109,7 @@ export const useGameStore = create<GameState>((set) => ({
   })),
   resetMatch: () => set({
     phase: 'menu',
+    gameMode: 'single', // Reset to single player
     isPaused: false,
     playerScore: 0,
     botScore: 0,

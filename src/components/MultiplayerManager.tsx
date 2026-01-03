@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import Peer, { DataConnection } from 'peerjs';
 import { useMultiplayerStore } from '@/store/useMultiplayerStore';
 import { useGameStore, gameInput } from '@/store/useGameStore';
@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 export function MultiplayerManager() {
   const peerRef = useRef<Peer | null>(null);
   const connRef = useRef<DataConnection | null>(null);
+  const isManualDisconnect = useRef(false);
+  const [restartTrigger, setRestartTrigger] = useState(0);
   // Store Selectors
   const role = useMultiplayerStore(s => s.role);
   const peerId = useMultiplayerStore(s => s.peerId);
@@ -20,6 +22,7 @@ export function MultiplayerManager() {
   const setRole = useMultiplayerStore(s => s.setRole);
   const setIsQueuing = useMultiplayerStore(s => s.setIsQueuing);
   const setQueueCount = useMultiplayerStore(s => s.setQueueCount);
+  const resetMultiplayer = useMultiplayerStore(s => s.reset);
   const startGame = useGameStore(s => s.startGame);
   const phase = useGameStore(s => s.phase);
   // Handle Connection Logic
@@ -58,6 +61,11 @@ export function MultiplayerManager() {
       }
     });
     conn.on('close', () => {
+      if (isManualDisconnect.current) {
+        console.log('Manual disconnection completed');
+        isManualDisconnect.current = false;
+        return;
+      }
       console.log('Connection closed');
       setStatus('disconnected');
       setRole(null);
@@ -70,6 +78,17 @@ export function MultiplayerManager() {
       }
     });
   }, [setRole, setStatus, setOpponentId, startGame, setIsQueuing]);
+  // Lifecycle Management: Cleanup when returning to menu
+  useEffect(() => {
+    if (phase === 'menu' && status === 'connected') {
+        console.log('User returned to menu, closing multiplayer connection');
+        isManualDisconnect.current = true;
+        connRef.current?.close();
+        resetMultiplayer();
+        // Trigger Peer re-initialization to get a fresh ID for next time
+        setRestartTrigger(prev => prev + 1);
+    }
+  }, [phase, status, resetMultiplayer]);
   // Initialize Peer
   useEffect(() => {
     const peer = new Peer();
@@ -106,7 +125,7 @@ export function MultiplayerManager() {
       clearTimeout(connectionTimeout);
       peer.destroy();
     };
-  }, [setPeerId, setStatus, setError, handleConnection, setIsQueuing]);
+  }, [restartTrigger, setPeerId, setStatus, setError, handleConnection, setIsQueuing]);
   // Queue Logic
   useEffect(() => {
     let pollInterval: any = null;
