@@ -1,6 +1,6 @@
 import React, { useState, Suspense, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Stage } from '@react-three/drei';
+import { OrbitControls, ContactShadows } from '@react-three/drei';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, User, Play, Dices } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,8 @@ function CharacterPreview({ hairStyle }: { hairStyle: number }) {
     }
   });
   return (
-    // Manual offset to lower the character so the head is visible
+    // Manual offset to lower the character so the head is visible and centered
+    // CharacterModel forces Y=0 internally, so we move the wrapper group down
     <group ref={groupRef} position={[0, -0.9, 0]}>
       <CharacterModel
         entity={dummyEntity}
@@ -82,15 +83,23 @@ export function ProfileCreation() {
               PREVIEW
             </span>
           </div>
-          <Canvas shadows camera={{ position: [0, 1, 3], fov: 45 }}>
+          <Canvas shadows camera={{ position: [0, 0.5, 4], fov: 40 }}>
             <Suspense fallback={null}>
-              <ambientLight intensity={0.8} />
-              <directionalLight position={[2, 5, 2]} intensity={1.5} castShadow />
-              {/* center={false} is critical here to respect the manual position in CharacterPreview */}
-              <Stage intensity={0.5} environment="city" adjustCamera={false} center={false}>
-                <CharacterPreview hairStyle={hairStyle} />
-              </Stage>
-              <OrbitControls enableZoom={false} enablePan={false} minPolarAngle={Math.PI / 3} maxPolarAngle={Math.PI / 2} />
+              {/* Manual Lighting Setup */}
+              <ambientLight intensity={0.7} />
+              <directionalLight position={[5, 5, 5]} intensity={1.5} castShadow />
+              {/* Character */}
+              <CharacterPreview hairStyle={hairStyle} />
+              {/* Floor Shadow */}
+              <ContactShadows position={[0, -0.9, 0]} opacity={0.4} scale={10} blur={2.5} far={4} />
+              {/* Controls */}
+              <OrbitControls 
+                enableZoom={false} 
+                enablePan={false} 
+                minPolarAngle={Math.PI / 3} 
+                maxPolarAngle={Math.PI / 2} 
+                target={[0, 0, 0]}
+              />
             </Suspense>
           </Canvas>
         </div>
