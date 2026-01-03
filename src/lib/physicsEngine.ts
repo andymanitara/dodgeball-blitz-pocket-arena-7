@@ -4,7 +4,7 @@ import { COURT_WIDTH, COURT_LENGTH, PLAYER_RADIUS, BALL_RADIUS } from '@/lib/con
 // Constants
 const PLAYER_SPEED = 8;
 const BOT_SPEED = 5;
-const DODGE_SPEED = 12; // Reduced from 18 to prevent overshooting
+const DODGE_SPEED = 12;
 const FRICTION = 0.92;
 const GRAVITY = 25;
 const THROW_FORCE = 20;
@@ -24,6 +24,7 @@ interface Entity {
   cooldown: number; // For dodge or throw
   holdingBallId: number | null;
   invulnerable: number;
+  stunTimer: number; // Time remaining for stun (immobilized)
 }
 interface Ball {
   id: number;
@@ -57,7 +58,8 @@ class PhysicsEngine {
       radius: PLAYER_RADIUS,
       cooldown: 0,
       holdingBallId: null,
-      invulnerable: 0
+      invulnerable: 0,
+      stunTimer: 0
     };
   }
   resetBalls() {
@@ -98,6 +100,9 @@ class PhysicsEngine {
   update(dt: number) {
     // Pause physics during countdown
     if (useGameStore.getState().countdown > 0) return;
+    // Decrement stun timers
+    if (this.player.stunTimer > 0) this.player.stunTimer -= dt;
+    if (this.bot.stunTimer > 0) this.bot.stunTimer -= dt;
     // 1. Player Movement
     this.handlePlayerInput(dt);
     // 2. Bot Logic (State Machine)
@@ -110,6 +115,15 @@ class PhysicsEngine {
     this.syncState();
   }
   handlePlayerInput(dt: number) {
+    // STUN CHECK: Block all input if stunned
+    if (this.player.stunTimer > 0) {
+        this.player.vx = 0;
+        this.player.vz = 0;
+        // Clear input flags so actions don't queue up
+        gameInput.isThrowing = false;
+        gameInput.isDodging = false;
+        return;
+    }
     const { joystick, isThrowing, isDodging } = gameInput;
     // Cooldown management
     if (this.player.cooldown > 0) this.player.cooldown -= dt;
@@ -147,6 +161,12 @@ class PhysicsEngine {
     }
   }
   handleBotLogic(dt: number) {
+    // STUN CHECK: Block AI if stunned
+    if (this.bot.stunTimer > 0) {
+        this.bot.vx = 0;
+        this.bot.vz = 0;
+        return;
+    }
     // Cooldowns
     if (this.bot.cooldown > 0) this.bot.cooldown -= dt;
     if (this.bot.invulnerable > 0) this.bot.invulnerable -= dt;
@@ -436,10 +456,15 @@ class PhysicsEngine {
     // Logic
     if (victim === 'player') {
         useGameStore.getState().decrementPlayerLives();
-        this.player.invulnerable = 1.5;
+        // STUN MECHANIC:
+        // 1.5s immobilized
+        // 2.0s invulnerable (gives 0.5s grace after standing up)
+        this.player.stunTimer = 1.5;
+        this.player.invulnerable = 2.0;
     } else {
         useGameStore.getState().decrementBotLives();
-        this.bot.invulnerable = 1.5;
+        this.bot.stunTimer = 1.5;
+        this.bot.invulnerable = 2.0;
     }
     // Round End Check
     const { playerLives, botLives } = useGameStore.getState();
@@ -470,10 +495,13 @@ class PhysicsEngine {
   syncState() {
     physicsState.player.x = this.player.x;
     physicsState.player.z = this.player.z;
-    physicsState.player.isHit = this.player.invulnerable > 0;
+    // Visual isHit logic:
+    // Character stays on floor (isHit=true) while stunTimer > 0.3
+    // Character stands up (isHit=false) during last 0.3s of stun
+    physicsState.player.isHit = this.player.stunTimer > 0.3;
     physicsState.bot.x = this.bot.x;
     physicsState.bot.z = this.bot.z;
-    physicsState.bot.isHit = this.bot.invulnerable > 0;
+    physicsState.bot.isHit = this.bot.stunTimer > 0.3;
     physicsState.balls = this.balls.map(b => ({
         id: b.id,
         x: b.x,
