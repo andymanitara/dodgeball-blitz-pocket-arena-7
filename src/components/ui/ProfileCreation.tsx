@@ -55,8 +55,8 @@ export function ProfileCreation() {
   const cycleHair = (direction: number) => {
     setHairStyle(prev => {
       const next = prev + direction;
-      if (next < 0) return 2;
-      if (next > 2) return 0;
+      if (next < 0) return 4; // Updated to 4
+      if (next > 4) return 0; // Updated to 4
       return next;
     });
   };

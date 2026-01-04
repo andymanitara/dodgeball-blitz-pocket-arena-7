@@ -1,12 +1,16 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Sphere, Trail, Box } from '@react-three/drei';
+import { Sphere, Trail, Box, Torus } from '@react-three/drei';
 import { physicsState, useGameStore } from '@/store/useGameStore';
 import { useUserStore } from '@/store/useUserStore';
 import * as THREE from 'three';
 export const Hair = ({ style }: { style: number }) => {
     const color = useMemo(() => {
         const colors = ['#000000', '#3f2a14', '#5e3a18', '#8b4513', '#d2691e'];
+        return colors[Math.floor(Math.random() * colors.length)];
+    }, []);
+    const accessoryColor = useMemo(() => {
+        const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
         return colors[Math.floor(Math.random() * colors.length)];
     }, []);
     switch (style) {
@@ -46,6 +50,47 @@ export const Hair = ({ style }: { style: number }) => {
                     </Sphere>
                 </group>
             );
+        case 3: // Baseball Cap
+            return (
+                <group position={[0, 0.15, 0]}>
+                    {/* Cap Dome */}
+                    <Sphere args={[0.185, 16, 16]} position={[0, 0, 0]}>
+                        <meshStandardMaterial color={accessoryColor} />
+                    </Sphere>
+                    {/* Brim (Facing forward relative to character face) */}
+                    {/* Character faces +Z in preview, but -Z in game. We align to local Z. */}
+                    {/* In ProfileCreation, character rotates. In game, player faces -Z. */}
+                    {/* Let's assume local +Z is "back" of head based on previous face logic, wait... */}
+                    {/* Previous logic: Player Face (Back of head relative to camera, but player faces -Z). */}
+                    {/* So local -Z is forward? Let's check CharacterModel face logic. */}
+                    {/* Player Face mesh position is [0, 0, 0.18]. This suggests +Z is the face direction for the mesh logic? */}
+                    {/* Actually, CharacterModel: Player faces -Z (rotation.y = PI). */}
+                    {/* But the face mesh is at +0.18 Z. This means the face is on the +Z side of the box. */}
+                    {/* So if rotation is PI, +Z becomes -Z in world space. Correct. */}
+                    {/* So Brim should be on +Z side. */}
+                    <Box args={[0.22, 0.02, 0.15]} position={[0, -0.05, 0.18]} rotation={[0.1, 0, 0]}>
+                        <meshStandardMaterial color={accessoryColor} />
+                    </Box>
+                </group>
+            );
+        case 4: // Headphones
+            return (
+                <group position={[0, 0.18, 0]}>
+                    {/* Band */}
+                    <group rotation={[0, 0, Math.PI / 2]}>
+                         <Torus args={[0.22, 0.03, 8, 24, Math.PI]} position={[0, 0, 0]}>
+                            <meshStandardMaterial color="#333" />
+                         </Torus>
+                    </group>
+                    {/* Ear Cups */}
+                    <Box args={[0.08, 0.12, 0.12]} position={[-0.22, -0.05, 0]}>
+                        <meshStandardMaterial color={accessoryColor} />
+                    </Box>
+                    <Box args={[0.08, 0.12, 0.12]} position={[0.22, -0.05, 0]}>
+                        <meshStandardMaterial color={accessoryColor} />
+                    </Box>
+                </group>
+            );
         default:
             return null;
     }
@@ -71,7 +116,7 @@ export const CharacterModel = ({
   const prevHoldingBallId = useRef<number | null>(null);
   const throwTimer = useRef(0);
   // Randomize hair style on mount if not provided
-  const randomHair = useMemo(() => Math.floor(Math.random() * 3), []);
+  const randomHair = useMemo(() => Math.floor(Math.random() * 5), []); // Updated to 5 styles (0-4)
   const finalHairStyle = hairStyle !== undefined ? hairStyle : randomHair;
   // Define colors
   const skinColor = '#ffdbac';
@@ -234,10 +279,13 @@ export const CharacterModel = ({
                 </mesh>
                 {/* Hair */}
                 <Hair style={finalHairStyle} />
-                {/* Headband */}
-                <mesh position={[0, 0.1, 0]} castShadow material={materials.headband}>
-                     <boxGeometry args={[0.36, 0.08, 0.36]} />
-                </mesh>
+                {/* Headband (Only if not wearing cap/headphones to avoid clipping, or keep it?) */}
+                {/* Let's keep it for now, it might look like a sweatband under the cap */}
+                {finalHairStyle < 3 && (
+                    <mesh position={[0, 0.1, 0]} castShadow material={materials.headband}>
+                        <boxGeometry args={[0.36, 0.08, 0.36]} />
+                    </mesh>
+                )}
                 {/* Face Details */}
                 {type === 'player' ? (
                     // Player Face (Back of head relative to camera, but player faces -Z)

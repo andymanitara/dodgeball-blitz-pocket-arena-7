@@ -7,12 +7,13 @@ import { TouchControls } from '@/components/ui/TouchControls';
 import { GameHUD } from '@/components/ui/GameHUD';
 import { HowToPlayModal } from '@/components/ui/HowToPlayModal';
 import { SettingsModal } from '@/components/ui/SettingsModal';
+import { CreditsModal } from '@/components/ui/CreditsModal';
 import { ProfileCreation } from '@/components/ui/ProfileCreation';
 import { MultiplayerMenu } from '@/components/ui/MultiplayerMenu';
 import { MultiplayerManager } from '@/components/MultiplayerManager';
 import { GameLogic } from '@/components/GameLogic';
 import { Button } from '@/components/ui/button';
-import { Trophy, Skull, Play, RotateCcw, HelpCircle, Settings, Pause, LogOut, User, Medal, Globe, RefreshCw, Loader2, Zap } from 'lucide-react';
+import { Trophy, Skull, Play, RotateCcw, HelpCircle, Settings, Pause, LogOut, User, Medal, Globe, RefreshCw, Loader2, Zap, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { physicsEngine } from '@/lib/physicsEngine';
 import { Card } from '@/components/ui/card';
@@ -35,7 +36,7 @@ export function HomePage() {
   const rematchRequested = useMultiplayerStore(s => s.rematchRequested);
   const opponentRematchRequested = useMultiplayerStore(s => s.opponentRematchRequested);
   const setRematchRequested = useMultiplayerStore(s => s.setRematchRequested);
-  const [activeModal, setActiveModal] = useState<'none' | 'howto' | 'settings' | 'multiplayer'>('none');
+  const [activeModal, setActiveModal] = useState<'none' | 'howto' | 'settings' | 'multiplayer' | 'credits'>('none');
   const handleSinglePlayer = () => {
     physicsEngine.setMode('single');
     startGame('single');
@@ -177,6 +178,18 @@ export function HomePage() {
                           aria-label="Settings"
                       >
                           <Settings className="w-6 h-6 text-slate-300" />
+                      </Button>
+                  </motion.div>
+                  <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                      <Button
+                          variant="secondary"
+                          size="icon"
+                          className="w-12 h-12 rounded-full bg-slate-800 border border-slate-600 hover:bg-slate-700 shadow-lg"
+                          onClick={() => setActiveModal('credits')}
+                          title="Credits"
+                          aria-label="Credits"
+                      >
+                          <Heart className="w-5 h-5 text-pink-500" />
                       </Button>
                   </motion.div>
                   <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
@@ -340,6 +353,7 @@ export function HomePage() {
             {activeModal === 'howto' && <HowToPlayModal onClose={() => setActiveModal('none')} />}
             {activeModal === 'settings' && <SettingsModal onClose={() => setActiveModal('none')} />}
             {activeModal === 'multiplayer' && <MultiplayerMenu onClose={() => setActiveModal('none')} />}
+            {activeModal === 'credits' && <CreditsModal onClose={() => setActiveModal('none')} />}
         </AnimatePresence>
         {/* Version Indicator */}
         <div className="absolute bottom-2 right-4 text-white/20 text-xs font-mono pointer-events-none">
