@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { X, Volume2, VolumeX, Music, Smartphone, Settings, Network } from 'lucide-react';
+import { X, Volume2, VolumeX, Music, Smartphone, Settings, Network, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -11,6 +11,10 @@ interface SettingsModalProps {
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const settings = useGameStore(s => s.settings);
   const toggleSetting = useGameStore(s => s.toggleSetting);
+  const resetSettings = useGameStore(s => s.resetSettings);
+  const handleReset = () => {
+    resetSettings();
+  };
   return (
     // Added pointer-events-auto to ensure clicks are captured
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pointer-events-auto">
@@ -92,9 +96,17 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     Uses server connection. Fixes "Different WiFi" issues but increases latency.
                 </p>
             </div>
-            <div className="pt-4">
-                <Button className="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-6 rounded-xl" onClick={onClose}>
-                Close
+            {/* Reset & Close Buttons */}
+            <div className="pt-4 space-y-3">
+                <Button
+                    variant="secondary"
+                    className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600"
+                    onClick={handleReset}
+                >
+                    <RotateCcw className="w-4 h-4 mr-2" /> Reset to Defaults
+                </Button>
+                <Button className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-6 rounded-xl" onClick={onClose}>
+                    Close
                 </Button>
             </div>
           </CardContent>
