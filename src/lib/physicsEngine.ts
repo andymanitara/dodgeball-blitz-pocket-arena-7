@@ -107,6 +107,16 @@ class PhysicsEngine {
             isLethal: false
         };
     });
+    // Sync to shared state immediately
+    physicsState.balls = this.balls.map(b => ({
+        id: b.id,
+        x: b.x,
+        y: b.y,
+        z: b.z,
+        state: b.state,
+        owner: b.owner,
+        isLethal: b.isLethal
+    }));
   }
   resetPositions() {
     this.player = this.createEntity(0, 6);
@@ -613,7 +623,7 @@ class PhysicsEngine {
   }
   // Client-side state injection
   injectState(state: any) {
-    if (!state || !state.player || !state.bot) return;
+    if (!state || !state.player || !state.bot || !state.balls) return;
     if (this.mode === 'client') {
         // --- PERSPECTIVE SWAPPING & INVERSION ---
         // The Client controls the "Bot" entity on the Host.
@@ -638,6 +648,7 @@ class PhysicsEngine {
             x: -b.x,
             z: -b.z,
             vx: -b.vx,
+            vy: b.vy,
             vz: -b.vz,
             // Swap owner: 'player' (Host) -> 'bot' (Opponent), 'bot' (Client) -> 'player' (Self)
             owner: b.owner === 'player' ? 'bot' : (b.owner === 'bot' ? 'player' : null)
@@ -660,18 +671,22 @@ class PhysicsEngine {
         }
         // 5. Update Shared State (Mutate in place)
         // We manually update physicsState to reflect the swapped/inverted entities
-        physicsState.player.x = this.player.x;
-        physicsState.player.z = this.player.z;
-        physicsState.player.cooldown = this.player.cooldown;
-        physicsState.player.holdingBallId = this.player.holdingBallId;
-        physicsState.player.isHit = state.bot.isHit;
-        physicsState.player.rotation = 0;
-        physicsState.bot.x = this.bot.x;
-        physicsState.bot.z = this.bot.z;
-        physicsState.bot.cooldown = this.bot.cooldown;
-        physicsState.bot.holdingBallId = this.bot.holdingBallId;
-        physicsState.bot.isHit = state.player.isHit;
-        physicsState.bot.rotation = 0;
+        Object.assign(physicsState.player, {
+            x: this.player.x,
+            z: this.player.z,
+            cooldown: this.player.cooldown,
+            holdingBallId: this.player.holdingBallId,
+            isHit: state.bot.isHit,
+            rotation: 0
+        });
+        Object.assign(physicsState.bot, {
+            x: this.bot.x,
+            z: this.bot.z,
+            cooldown: this.bot.cooldown,
+            holdingBallId: this.bot.holdingBallId,
+            isHit: state.player.isHit,
+            rotation: 0
+        });
         physicsState.balls = this.balls;
         // 6. Game State Sync
         if (state.game) {

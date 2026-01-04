@@ -50,16 +50,16 @@ export const Hair = ({ style }: { style: number }) => {
             return null;
     }
 };
-export const CharacterModel = ({ 
-    color, 
-    type, 
+export const CharacterModel = ({
+    color,
+    type,
     hairStyle,
-    entity: propEntity 
-}: { 
-    color: string, 
-    type: 'player' | 'bot', 
+    entity: propEntity
+}: {
+    color: string,
+    type: 'player' | 'bot',
     hairStyle?: number,
-    entity?: any 
+    entity?: any
 }) => {
   const group = useRef<THREE.Group>(null);
   const bodyGroup = useRef<THREE.Group>(null);
@@ -107,14 +107,12 @@ export const CharacterModel = ({
     // 1. Position Sync with Interpolation
     const targetPos = new THREE.Vector3(entity.x, 0, entity.z);
     // Snap if distance is too large (teleport/respawn), otherwise lerp
-    // This smoothing factor (0.25) ensures the character remains responsive while smoothing out the discrete network updates.
     if (group.current.position.distanceTo(targetPos) > 5) {
         group.current.position.copy(targetPos);
     } else {
         group.current.position.lerp(targetPos, 0.25);
     }
     // 2. Velocity Calculation (Local)
-    // We use the target position for velocity calculation to keep animations responsive to the actual physics state
     const safeDelta = Math.max(delta, 0.001);
     const velocity = targetPos.clone().sub(prevPos.current).divideScalar(safeDelta);
     const speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
@@ -360,6 +358,14 @@ const Ball = ({ id }: { id: number }) => {
 };
 export function Entities() {
   const playerHair = useUserStore(s => s.hairStyle);
+  // Local state to track the balls array reference
+  const [balls, setBalls] = useState(physicsState.balls);
+  // Sync with physicsState.balls reference changes (e.g. from network updates)
+  useFrame(() => {
+    if (physicsState.balls !== balls) {
+        setBalls(physicsState.balls);
+    }
+  });
   return (
     <group>
       <CharacterModel
@@ -371,7 +377,7 @@ export function Entities() {
         color="#ef4444"
         type="bot"
       />
-      {physicsState.balls.map((ball) => (
+      {balls.map((ball) => (
         <Ball key={ball.id} id={ball.id} />
       ))}
     </group>

@@ -15,7 +15,6 @@ export function MultiplayerManager() {
   const isMultiplayerActive = useMultiplayerStore(s => s.isMultiplayerActive);
   const rematchRequested = useMultiplayerStore(s => s.rematchRequested);
   const opponentRematchRequested = useMultiplayerStore(s => s.opponentRematchRequested);
-  const connectionType = useMultiplayerStore(s => s.connectionType);
   const phase = useGameStore(s => s.phase);
   // Actions
   const setPeerId = useMultiplayerStore(s => s.setPeerId);
@@ -29,7 +28,9 @@ export function MultiplayerManager() {
   const setConnectionType = useMultiplayerStore(s => s.setConnectionType);
   const startGame = useGameStore(s => s.startGame);
   const resetMatch = useGameStore(s => s.resetMatch);
-  // --- DATA HANDLING ---
+  // --- DATA HANDLING (Stable Ref Pattern) ---
+  // We wrap the logic in useCallback, but we store it in a ref to avoid
+  // triggering effect re-runs when dependencies change.
   const handleData = useCallback((data: any, myRole: MultiplayerRole) => {
     if (myRole === 'host') {
       if (data.type === 'input') physicsEngine.setRemoteInput(data.payload);
@@ -51,14 +52,19 @@ export function MultiplayerManager() {
           toast.info('Opponent wants a rematch!');
       }
     }
-  }, [startGame, setOpponentRematchRequested, setRematchRequested]);
+  }, [startGame, setOpponentRematchRequested, setRematchRequested, setRematchRequested]);
+  const handleDataRef = useRef(handleData);
+  // Update ref whenever handleData changes
+  useEffect(() => {
+    handleDataRef.current = handleData;
+  }, [handleData]);
   // --- SENDING LOGIC (Dual Transport) ---
   const sendData = useCallback((data: any) => {
     const currentType = useMultiplayerStore.getState().connectionType;
     // Prefer P2P if available
     if (currentType === 'p2p' && connRef.current?.open) {
       connRef.current.send(data);
-    } 
+    }
     // Fallback to Relay
     else if (queueWsRef.current?.readyState === WebSocket.OPEN) {
       queueWsRef.current.send(JSON.stringify({ type: 'RELAY', payload: data }));
@@ -94,10 +100,10 @@ export function MultiplayerManager() {
                 physicsEngine.setMode(data.role === 'host' ? 'host' : 'client');
                 startGame('multiplayer');
             } else if (data.type === 'RELAY') {
-                // Handle Relay Data
+                // Handle Relay Data using REF to avoid dependency cycle
                 const myRole = useMultiplayerStore.getState().role;
                 if (myRole) {
-                    handleData(data.payload, myRole);
+                    handleDataRef.current(data.payload, myRole);
                 }
             } else if (data.type === 'PEER_DISCONNECTED') {
                 console.log('Opponent disconnected from server');
@@ -116,7 +122,8 @@ export function MultiplayerManager() {
         ws.close();
         queueWsRef.current = null;
     };
-  }, [isMultiplayerActive, onMatchFound, startGame, handleData, resetMatch, resetMultiplayer]);
+    // CRITICAL: Removed handleData from dependencies to prevent reconnection loops
+  }, [isMultiplayerActive, onMatchFound, startGame, resetMatch, resetMultiplayer]);
   // --- 2. P2P CONNECTION (Upgrade) ---
   const setupP2PListeners = useCallback((conn: DataConnection, myRole: 'host' | 'client') => {
     conn.on('open', () => {
@@ -126,14 +133,12 @@ export function MultiplayerManager() {
         toast.success('Connection upgraded to P2P!');
     });
     conn.on('data', (data: any) => {
-        // Only process P2P data if we are in P2P mode
-        // This prevents duplicate processing if Relay is also active (though unlikely)
-        handleData(data, myRole);
+        // Use REF here as well
+        handleDataRef.current(data, myRole);
     });
     conn.on('close', () => {
       console.log('P2P Connection closed');
-      // Fallback to Relay if possible?
-      // Usually if P2P closes, it might mean total disconnect, but let's check WS
+      // Fallback to Relay if possible
       if (queueWsRef.current?.readyState === WebSocket.OPEN) {
           setConnectionType('relay');
           toast.warning('P2P lost. Falling back to Relay.');
@@ -148,14 +153,13 @@ export function MultiplayerManager() {
     });
     conn.on('error', (err) => {
       console.error('P2P Connection error:', err);
-      // Don't kill game if Relay is working
       if (useMultiplayerStore.getState().connectionType === 'relay') {
           // Silent fail or warning
       } else {
           setError(err.message);
       }
     });
-  }, [setStatus, setError, resetMatch, resetMultiplayer, handleData, setConnectionType]);
+  }, [setStatus, setError, resetMatch, resetMultiplayer, setConnectionType]);
   // Initialize PeerJS when Match is Found
   useEffect(() => {
     if (!role || !gameCode) {
@@ -221,13 +225,13 @@ export function MultiplayerManager() {
   useEffect(() => {
     if (role !== 'client') return;
     const interval = setInterval(() => {
-        sendData({ 
-          type: 'input', 
-          payload: { 
-            joystick: gameInput.joystick, 
-            isThrowing: gameInput.isThrowing, 
-            isDodging: gameInput.isDodging 
-          } 
+        sendData({
+          type: 'input',
+          payload: {
+            joystick: gameInput.joystick,
+            isThrowing: gameInput.isThrowing,
+            isDodging: gameInput.isDodging
+          }
         });
     }, 33);
     return () => clearInterval(interval);
