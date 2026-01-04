@@ -99,6 +99,11 @@ export function MultiplayerManager() {
                 if (myRole) {
                     handleData(data.payload, myRole);
                 }
+            } else if (data.type === 'PEER_DISCONNECTED') {
+                console.log('Opponent disconnected from server');
+                toast.error('Opponent disconnected from server');
+                resetMatch();
+                resetMultiplayer();
             }
         } catch (e) {
             console.error('WS Message Error', e);
@@ -111,7 +116,7 @@ export function MultiplayerManager() {
         ws.close();
         queueWsRef.current = null;
     };
-  }, [isMultiplayerActive, onMatchFound, startGame, handleData]);
+  }, [isMultiplayerActive, onMatchFound, startGame, handleData, resetMatch, resetMultiplayer]);
   // --- 2. P2P CONNECTION (Upgrade) ---
   const setupP2PListeners = useCallback((conn: DataConnection, myRole: 'host' | 'client') => {
     conn.on('open', () => {
@@ -127,7 +132,7 @@ export function MultiplayerManager() {
     });
     conn.on('close', () => {
       console.log('P2P Connection closed');
-      // Fallback to Relay if possible? 
+      // Fallback to Relay if possible?
       // Usually if P2P closes, it might mean total disconnect, but let's check WS
       if (queueWsRef.current?.readyState === WebSocket.OPEN) {
           setConnectionType('relay');
@@ -216,13 +221,13 @@ export function MultiplayerManager() {
   useEffect(() => {
     if (role !== 'client') return;
     const interval = setInterval(() => {
-        sendData({
-          type: 'input',
-          payload: {
-            joystick: gameInput.joystick,
-            isThrowing: gameInput.isThrowing,
-            isDodging: gameInput.isDodging
-          }
+        sendData({ 
+          type: 'input', 
+          payload: { 
+            joystick: gameInput.joystick, 
+            isThrowing: gameInput.isThrowing, 
+            isDodging: gameInput.isDodging 
+          } 
         });
     }, 33);
     return () => clearInterval(interval);
