@@ -92,7 +92,8 @@ function runSetupCommands() {
     "bun add peerjs",
     "bun add @cloudflare/workers-types",
     "bun add @radix-ui/react-tabs",
-    "bun add -d vite-plugin-pwa"
+    "bun add -d vite-plugin-pwa",
+    "bun install --force"
 ];
     
     if (commands.length === 0) {
