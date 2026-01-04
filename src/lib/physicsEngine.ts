@@ -70,8 +70,20 @@ class PhysicsEngine {
   setMode(mode: PhysicsMode) {
     this.mode = mode;
   }
-  setRemoteInput(input: typeof this.remoteInput) {
-    this.remoteInput = input;
+  setRemoteInput(input: any) {
+    if (!input) return;
+    // Validate and assign joystick
+    if (input.joystick && typeof input.joystick.x === 'number' && typeof input.joystick.y === 'number') {
+        this.remoteInput.joystick.x = input.joystick.x;
+        this.remoteInput.joystick.y = input.joystick.y;
+    }
+    // Validate and assign actions
+    if (typeof input.isThrowing === 'boolean') {
+        this.remoteInput.isThrowing = input.isThrowing;
+    }
+    if (typeof input.isDodging === 'boolean') {
+        this.remoteInput.isDodging = input.isDodging;
+    }
   }
   createEntity(x: number, z: number): Entity {
     return {
@@ -253,7 +265,7 @@ class PhysicsEngine {
     // Look for incoming LETHAL balls
     const incomingBall = this.balls.find(b => 
         b.state === 'flying' && 
-        b.owner === 'player' && 
+        b.owner === 'player' &&
         b.isLethal && // Only dodge lethal balls
         b.z < 0 && // In bot's half
         b.vz < 0 && // Moving towards bot
@@ -548,7 +560,7 @@ class PhysicsEngine {
     // Logic
     if (victim === 'player') {
         useGameStore.getState().decrementPlayerLives();
-        // STUN MECHANIC: 
+        // STUN MECHANIC:
         // 1.5s immobilized
         // 2.0s invulnerable (gives 0.5s grace after standing up)
         this.player.stunTimer = 1.5;

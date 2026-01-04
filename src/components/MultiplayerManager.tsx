@@ -33,7 +33,9 @@ export function MultiplayerManager() {
   // triggering effect re-runs when dependencies change.
   const handleData = useCallback((data: any, myRole: MultiplayerRole) => {
     if (myRole === 'host') {
-      if (data.type === 'input') physicsEngine.setRemoteInput(data.payload);
+      if (data.type === 'input') {
+        physicsEngine.setRemoteInput(data.payload);
+      }
       else if (data.type === 'rematch_request') {
           setOpponentRematchRequested(true);
           toast.info('Opponent wants a rematch!');
@@ -52,7 +54,7 @@ export function MultiplayerManager() {
           toast.info('Opponent wants a rematch!');
       }
     }
-  }, [startGame, setOpponentRematchRequested, setRematchRequested, setRematchRequested]);
+  }, [startGame, setOpponentRematchRequested, setRematchRequested]);
   const handleDataRef = useRef(handleData);
   // Update ref whenever handleData changes
   useEffect(() => {
@@ -60,12 +62,11 @@ export function MultiplayerManager() {
   }, [handleData]);
   // --- SENDING LOGIC (Dual Transport) ---
   const sendData = useCallback((data: any) => {
-    const currentType = useMultiplayerStore.getState().connectionType;
-    // Prefer P2P if available
-    if (currentType === 'p2p' && connRef.current?.open) {
+    // Check P2P first directly on the ref - most reliable source of truth
+    if (connRef.current?.open) {
       connRef.current.send(data);
     }
-    // Fallback to Relay
+    // Fallback to Relay if P2P is not open (regardless of store state)
     else if (queueWsRef.current?.readyState === WebSocket.OPEN) {
       queueWsRef.current.send(JSON.stringify({ type: 'RELAY', payload: data }));
     }
@@ -225,13 +226,15 @@ export function MultiplayerManager() {
   useEffect(() => {
     if (role !== 'client') return;
     const interval = setInterval(() => {
-        sendData({
-          type: 'input',
-          payload: {
-            joystick: gameInput.joystick,
+        // Deep copy input to ensure clean serialization and avoid reference issues
+        const payload = {
+            joystick: { x: gameInput.joystick.x, y: gameInput.joystick.y },
             isThrowing: gameInput.isThrowing,
             isDodging: gameInput.isDodging
-          }
+        };
+        sendData({
+          type: 'input',
+          payload
         });
     }, 33);
     return () => clearInterval(interval);
