@@ -80,12 +80,16 @@ export class MultiplayerQueueDO extends DurableObject {
                     role: existingPlayer.role,
                     code: existingPlayer.matchCode
                 }));
-            } catch (e) {}
+            } catch (e) {
+                console.warn('Failed to send MATCH_RESTORED', e);
+            }
             // Notify Opponent: Reconnected
             if (existingPlayer.opponent.ws.readyState === 1) {
                 try {
                     existingPlayer.opponent.ws.send(JSON.stringify({ type: 'OPPONENT_RECONNECTED' }));
-                } catch (e) {}
+                } catch (e) {
+                    console.warn('Failed to send OPPONENT_RECONNECTED', e);
+                }
             }
         } else {
             // If they were in queue (or idle), ensure they are in the queue
@@ -125,7 +129,9 @@ export class MultiplayerQueueDO extends DurableObject {
         if (player.opponent.ws.readyState === 1) {
             try {
                 player.opponent.ws.send(JSON.stringify({ type: 'OPPONENT_DISCONNECTED_TEMP' }));
-            } catch (e) {}
+            } catch (e) {
+                console.warn('Failed to send OPPONENT_DISCONNECTED_TEMP', e);
+            }
         }
         // Note: We do NOT delete the session here. We keep it to allow reconnection.
         // A separate cleanup process (alarm) would be ideal to remove stale sessions after X minutes,
@@ -153,6 +159,7 @@ export class MultiplayerQueueDO extends DurableObject {
         p1.ws.send(JSON.stringify({ type: 'MATCH_FOUND', role: 'host', code: gameCode }));
         p2.ws.send(JSON.stringify({ type: 'MATCH_FOUND', role: 'client', code: gameCode }));
       } catch (e) {
+        console.warn('Failed to send MATCH_FOUND', e);
         // If send fails, we might lose a match, but the queue filter above helps prevent this
       }
     }

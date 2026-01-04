@@ -6,11 +6,15 @@ import { useUserStore } from '@/store/useUserStore';
 import { physicsEngine } from '@/lib/physicsEngine';
 import { toast } from 'sonner';
 const ID_PREFIX = 'db-blitz-';
+const RECONNECT_TIMEOUT_MS = 30000; // 30 seconds
 export function MultiplayerManager() {
   const peerRef = useRef<Peer | null>(null);
   const connRef = useRef<DataConnection | null>(null);
   const queueWsRef = useRef<WebSocket | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  // Timeout refs for opponent disconnection
+  const disconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const disconnectToastIdRef = useRef<string | number | null>(null);
   // Store Selectors
   const role = useMultiplayerStore(s => s.role);
   const gameCode = useMultiplayerStore(s => s.gameCode);
@@ -123,10 +127,29 @@ export function MultiplayerManager() {
                 }
             }
             else if (data.type === 'OPPONENT_RECONNECTED') {
+                // Clear timeout and warning
+                if (disconnectTimeoutRef.current) {
+                    clearTimeout(disconnectTimeoutRef.current);
+                    disconnectTimeoutRef.current = null;
+                }
+                if (disconnectToastIdRef.current) {
+                    toast.dismiss(disconnectToastIdRef.current);
+                    disconnectToastIdRef.current = null;
+                }
                 toast.success('Opponent reconnected!');
             }
             else if (data.type === 'OPPONENT_DISCONNECTED_TEMP') {
-                toast.warning('Opponent disconnected. Waiting for reconnect...');
+                // Start timeout and show warning
+                if (disconnectTimeoutRef.current) clearTimeout(disconnectTimeoutRef.current);
+                disconnectToastIdRef.current = toast.warning('Opponent disconnected. Waiting for reconnect...', {
+                    duration: Infinity,
+                });
+                disconnectTimeoutRef.current = setTimeout(() => {
+                    if (disconnectToastIdRef.current) toast.dismiss(disconnectToastIdRef.current);
+                    toast.error('Opponent failed to reconnect. Match ended.');
+                    resetMatch();
+                    resetMultiplayer();
+                }, RECONNECT_TIMEOUT_MS);
             }
             else if (data.type === 'RELAY') {
                 const myRole = useMultiplayerStore.getState().role;
@@ -158,6 +181,9 @@ export function MultiplayerManager() {
         if (queueWsRef.current === ws) {
             queueWsRef.current = null;
         }
+        // Cleanup timeouts
+        if (disconnectTimeoutRef.current) clearTimeout(disconnectTimeoutRef.current);
+        if (disconnectToastIdRef.current) toast.dismiss(disconnectToastIdRef.current);
     };
   }, [isMultiplayerActive, onMatchFound, startGame, resetMatch, resetMultiplayer, retryCount, sessionId, username]);
   // --- 2. P2P CONNECTION (Upgrade) ---
@@ -190,7 +216,7 @@ export function MultiplayerManager() {
           setError(err.message);
       }
     });
-  }, [setStatus, setError, resetMatch, resetMultiplayer, setConnectionType]);
+  }, [setStatus, setError, setConnectionType]); // Removed resetMatch, resetMultiplayer
   // Initialize PeerJS when Match is Found
   useEffect(() => {
     if (!role || !gameCode) {
