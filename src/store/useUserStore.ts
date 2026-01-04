@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { v4 as uuidv4 } from 'uuid';
 interface UserStats {
   wins: number;
   losses: number;
@@ -9,6 +10,7 @@ interface UserState {
   username: string;
   hairStyle: number;
   isAuthenticated: boolean;
+  sessionId: string;
   stats: UserStats;
   setProfile: (username: string, hairStyle: number) => void;
   logout: () => void;
@@ -20,6 +22,7 @@ export const useUserStore = create<UserState>()(
       username: 'Guest',
       hairStyle: 0,
       isAuthenticated: false,
+      sessionId: uuidv4(), // Generate unique ID for this client session
       stats: { wins: 0, losses: 0, matches: 0 },
       setProfile: (username, hairStyle) => set({ username, hairStyle, isAuthenticated: true }),
       logout: () => set({ isAuthenticated: false }),
