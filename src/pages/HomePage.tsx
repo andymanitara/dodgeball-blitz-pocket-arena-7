@@ -16,6 +16,7 @@ import { Trophy, Skull, Play, RotateCcw, HelpCircle, Settings, Pause, LogOut, Us
 import { motion, AnimatePresence } from 'framer-motion';
 import { physicsEngine } from '@/lib/physicsEngine';
 import { Card } from '@/components/ui/card';
+import { APP_VERSION } from '@/lib/constants';
 export function HomePage() {
   const phase = useGameStore(s => s.phase);
   const isPaused = useGameStore(s => s.isPaused);
@@ -337,6 +338,10 @@ export function HomePage() {
             {activeModal === 'settings' && <SettingsModal onClose={() => setActiveModal('none')} />}
             {activeModal === 'multiplayer' && <MultiplayerMenu onClose={() => setActiveModal('none')} />}
         </AnimatePresence>
+        {/* Version Indicator */}
+        <div className="absolute bottom-2 right-4 text-white/20 text-xs font-mono pointer-events-none">
+            v{APP_VERSION}
+        </div>
       </div>
     </div>
   );

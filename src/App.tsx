@@ -6,6 +6,7 @@ import {
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { HomePage } from '@/pages/HomePage';
 const router = createBrowserRouter([
   {
@@ -29,8 +30,10 @@ export default function App() {
   }, []);
   return (
     <ErrorBoundary>
-      <RouterProvider router={router} />
-      <Toaster />
+      <TooltipProvider>
+        <RouterProvider router={router} />
+        <Toaster />
+      </TooltipProvider>
     </ErrorBoundary>
   );
 }

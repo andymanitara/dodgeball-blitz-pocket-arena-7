@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 export function GameHUD() {
@@ -95,31 +94,29 @@ export function GameHUD() {
             </Button>
             {/* Online Indicator */}
             {gameMode === 'multiplayer' && (
-                <TooltipProvider>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className={cn(
-                                "flex items-center gap-1.5 px-3 py-1 rounded-full backdrop-blur-md border shadow-lg transition-colors duration-500 cursor-help",
-                                connectionType === 'p2p' ? "bg-green-900/60 border-green-500/30" : "bg-yellow-900/60 border-yellow-500/30"
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <div className={cn(
+                            "flex items-center gap-1.5 px-3 py-1 rounded-full backdrop-blur-md border shadow-lg transition-colors duration-500 cursor-help",
+                            connectionType === 'p2p' ? "bg-green-900/60 border-green-500/30" : "bg-yellow-900/60 border-yellow-500/30"
+                        )}>
+                            {connectionType === 'p2p' ? (
+                                <Zap className="w-3 h-3 text-green-400 fill-current" />
+                            ) : (
+                                <Wifi className="w-3 h-3 text-yellow-400" />
+                            )}
+                            <span className={cn(
+                                "text-[10px] font-bold tracking-widest",
+                                connectionType === 'p2p' ? "text-green-400" : "text-yellow-400"
                             )}>
-                                {connectionType === 'p2p' ? (
-                                    <Zap className="w-3 h-3 text-green-400 fill-current" />
-                                ) : (
-                                    <Wifi className="w-3 h-3 text-yellow-400" />
-                                )}
-                                <span className={cn(
-                                    "text-[10px] font-bold tracking-widest",
-                                    connectionType === 'p2p' ? "text-green-400" : "text-yellow-400"
-                                )}>
-                                    {connectionType === 'p2p' ? 'P2P' : 'RELAY'}
-                                </span>
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="bg-slate-900 border-slate-700 text-white text-xs">
-                            <p>{connectionType === 'p2p' ? "Direct connection. Low latency." : "Routed via server. Higher latency possible."}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
+                                {connectionType === 'p2p' ? 'P2P' : 'RELAY'}
+                            </span>
+                        </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="bg-slate-900 border-slate-700 text-white text-xs">
+                        <p>{connectionType === 'p2p' ? "Direct connection. Low latency." : "Routed via server. Higher latency possible."}</p>
+                    </TooltipContent>
+                </Tooltip>
             )}
         </div>
         {/* Bot/Opponent Stats (Right) */}
