@@ -63,25 +63,19 @@ export function MultiplayerManager() {
   }, [handleData]);
   // --- SENDING LOGIC (Dual Transport / Dual-Cast) ---
   const sendData = useCallback((data: any) => {
-    let sentP2P = false;
-    // 1. Attempt P2P Transmission
+    // 1. Attempt P2P Transmission (Best Effort)
     if (connRef.current?.open) {
       try {
         connRef.current.send(data);
-        sentP2P = true;
       } catch (e) {
-        // Silent fail for P2P send errors, fallback to relay
+        // Silent fail for P2P send errors
       }
     }
-    // 2. Relay Transmission Logic
-    // We send via Relay if:
-    // a) P2P failed or wasn't open (Fallback)
-    // b) OR the data type is 'input' (Dual-Cast)
-    //    This ensures critical controls reach the host even if P2P is flaky/blocked
-    //    (Common issue on same-WiFi networks with strict NAT)
-    const isInput = data.type === 'input';
-    const shouldSendRelay = !sentP2P || isInput;
-    if (shouldSendRelay && queueWsRef.current?.readyState === WebSocket.OPEN) {
+    // 2. Relay Transmission Logic (Always Send / Dual-Cast)
+    // CRITICAL FIX: We now send EVERYTHING via Relay as well to guarantee delivery across different networks.
+    // This fixes the issue where P2P fails silently or is blocked by NAT/Firewalls.
+    // The receiving side handles deduplication via ID checks (for events) or idempotent updates (for state/input).
+    if (queueWsRef.current?.readyState === WebSocket.OPEN) {
       queueWsRef.current.send(JSON.stringify({ type: 'RELAY', payload: data }));
     }
   }, []);
