@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { X, Volume2, VolumeX, Music, Smartphone, Settings } from 'lucide-react';
+import { X, Volume2, VolumeX, Music, Smartphone, Settings, Network } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -72,6 +72,25 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     onCheckedChange={() => toggleSetting('vibration')}
                     className="data-[state=checked]:bg-green-600"
                 />
+            </div>
+            {/* Force Relay (Network Hardening) */}
+            <div className="space-y-2 pt-2 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-slate-800 p-2 rounded-lg">
+                            <Network className="w-5 h-5 text-yellow-400" />
+                        </div>
+                        <span className="font-medium text-lg">Force Relay Mode</span>
+                    </div>
+                    <Switch
+                        checked={settings.forceRelay}
+                        onCheckedChange={() => toggleSetting('forceRelay')}
+                        className="data-[state=checked]:bg-yellow-600"
+                    />
+                </div>
+                <p className="text-xs text-slate-500 ml-12">
+                    Uses server connection. Fixes "Different WiFi" issues but increases latency.
+                </p>
             </div>
             <div className="pt-4">
                 <Button className="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-6 rounded-xl" onClick={onClose}>

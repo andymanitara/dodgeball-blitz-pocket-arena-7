@@ -54,6 +54,10 @@ export class MultiplayerQueueDO extends DurableObject {
                 }
             }
         }
+        else if (data.type === 'PING') {
+            // Heartbeat response
+            ws.send(JSON.stringify({ type: 'PONG' }));
+        }
       } catch (e) {
         // Ignore invalid messages
       }
@@ -134,8 +138,6 @@ export class MultiplayerQueueDO extends DurableObject {
             }
         }
         // Note: We do NOT delete the session here. We keep it to allow reconnection.
-        // A separate cleanup process (alarm) would be ideal to remove stale sessions after X minutes,
-        // but for this MVP, we rely on the opponent eventually disconnecting or the worker restarting.
     } else {
         // If not in queue and not in match (zombie state), clean up
         this.sessions.delete(sessionId);

@@ -18,6 +18,7 @@ export interface GameState {
     sound: boolean;
     music: boolean;
     vibration: boolean;
+    forceRelay: boolean;
   };
   // Actions
   setPhase: (phase: GamePhase) => void;
@@ -81,6 +82,7 @@ export const useGameStore = create<GameState>((set) => ({
     sound: true,
     music: true,
     vibration: true,
+    forceRelay: false,
   },
   setPhase: (phase) => set({ phase }),
   startGame: (mode = 'single') => set({
