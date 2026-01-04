@@ -162,6 +162,7 @@ export function HomePage() {
                           className="w-12 h-12 rounded-full bg-slate-800 border border-slate-600 hover:bg-slate-700 shadow-lg"
                           onClick={() => setActiveModal('howto')}
                           title="How to Play"
+                          aria-label="How to Play"
                       >
                           <HelpCircle className="w-6 h-6 text-slate-300" />
                       </Button>
@@ -173,6 +174,7 @@ export function HomePage() {
                           className="w-12 h-12 rounded-full bg-slate-800 border border-slate-600 hover:bg-slate-700 shadow-lg"
                           onClick={() => setActiveModal('settings')}
                           title="Settings"
+                          aria-label="Settings"
                       >
                           <Settings className="w-6 h-6 text-slate-300" />
                       </Button>
@@ -184,6 +186,7 @@ export function HomePage() {
                           className="w-12 h-12 rounded-full bg-red-950/50 border border-red-900 hover:bg-red-900 shadow-lg"
                           onClick={logout}
                           title="Logout"
+                          aria-label="Logout"
                       >
                           <LogOut className="w-5 h-5 text-red-400" />
                       </Button>
