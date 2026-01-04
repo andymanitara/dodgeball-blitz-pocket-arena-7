@@ -57,10 +57,11 @@ export const useMultiplayerStore = create<MultiplayerState>((set) => ({
     status: 'connecting',
     connectionType: 'none'
   }),
-  leaveQueue: () => set({ 
-    isQueuing: false, 
+  leaveQueue: () => set({
+    isQueuing: false,
     isMultiplayerActive: false, // Close socket
-    status: 'disconnected' 
+    status: 'disconnected',
+    connectionType: 'none'
   }),
   onMatchFound: (role, code) => set({
     isQueuing: false,
@@ -80,7 +81,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set) => ({
     error: null,
     gameCode: null,
     isQueuing: false,
-    isMultiplayerActive: false,
+    isMultiplayerActive: false, // Ensure socket is closed
     rematchRequested: false,
     opponentRematchRequested: false
   }),

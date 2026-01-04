@@ -77,6 +77,12 @@ export class MultiplayerQueueDO extends DurableObject {
         existingPlayer.username = username; // Update username
         // If they were in a match, restore it
         if (existingPlayer.opponent) {
+            // Ensure they are not in the queue if they are already matched
+            const queueIndex = this.queue.findIndex(p => p.sessionId === sessionId);
+            if (queueIndex !== -1) {
+                this.queue.splice(queueIndex, 1);
+            }
+
             // Notify Self: Restore Match
             try {
                 ws.send(JSON.stringify({
@@ -145,7 +151,7 @@ export class MultiplayerQueueDO extends DurableObject {
   }
   matchmake() {
     // Filter out disconnected players from queue
-    this.queue = this.queue.filter(p => !p.isDisconnected && p.ws.readyState === 1);
+    this.queue = this.queue.filter(p => !p.isDisconnected && p.ws.readyState === 1 && !p.opponent);
     while (this.queue.length >= 2) {
       const p1 = this.queue.shift()!;
       const p2 = this.queue.shift()!;
