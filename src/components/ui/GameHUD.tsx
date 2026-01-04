@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { useUserStore } from '@/store/useUserStore';
 import { useMultiplayerStore } from '@/store/useMultiplayerStore';
-import { Heart, Pause, Wifi } from 'lucide-react';
+import { Heart, Pause, Wifi, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { audioController } from '@/lib/audioController';
@@ -21,6 +21,7 @@ export function GameHUD() {
   const gameMode = useGameStore(s => s.gameMode);
   const username = useUserStore(s => s.username);
   const status = useMultiplayerStore(s => s.status);
+  const connectionType = useMultiplayerStore(s => s.connectionType);
   const [showRoundStart, setShowRoundStart] = useState(false);
   const [showGo, setShowGo] = useState(false);
   const prevCountdown = useRef(countdown);
@@ -41,10 +42,9 @@ export function GameHUD() {
         }, 1000);
         return () => clearTimeout(timer);
     }
-    // Detect transition from 1 to 0 to show "GO!"
     if (prevCountdown.current === 1 && countdown === 0) {
         setShowGo(true);
-        audioController.play('throw'); // Whistle sound
+        audioController.play('throw');
         const timer = setTimeout(() => setShowGo(false), 1000);
         return () => clearTimeout(timer);
     }
@@ -89,9 +89,21 @@ export function GameHUD() {
             </Button>
             {/* Online Indicator */}
             {gameMode === 'multiplayer' && (
-                <div className="flex items-center gap-1.5 bg-black/60 px-3 py-1 rounded-full backdrop-blur-md border border-white/10 shadow-lg">
-                    <div className={cn("w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]", status === 'connected' ? "bg-green-500 text-green-500" : "bg-yellow-500 text-yellow-500")} />
-                    <span className="text-[10px] font-bold text-white tracking-widest">ONLINE</span>
+                <div className={cn(
+                    "flex items-center gap-1.5 px-3 py-1 rounded-full backdrop-blur-md border shadow-lg transition-colors duration-500",
+                    connectionType === 'p2p' ? "bg-green-900/60 border-green-500/30" : "bg-yellow-900/60 border-yellow-500/30"
+                )}>
+                    {connectionType === 'p2p' ? (
+                        <Zap className="w-3 h-3 text-green-400 fill-current" />
+                    ) : (
+                        <Wifi className="w-3 h-3 text-yellow-400" />
+                    )}
+                    <span className={cn(
+                        "text-[10px] font-bold tracking-widest",
+                        connectionType === 'p2p' ? "text-green-400" : "text-yellow-400"
+                    )}>
+                        {connectionType === 'p2p' ? 'P2P' : 'RELAY'}
+                    </span>
                 </div>
             )}
         </div>

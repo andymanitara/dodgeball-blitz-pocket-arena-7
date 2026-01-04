@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import Peer, { DataConnection } from 'peerjs';
-import { useMultiplayerStore } from '@/store/useMultiplayerStore';
+import { useMultiplayerStore, MultiplayerRole } from '@/store/useMultiplayerStore';
 import { useGameStore, gameInput } from '@/store/useGameStore';
 import { physicsEngine } from '@/lib/physicsEngine';
 import { toast } from 'sonner';
@@ -12,143 +12,147 @@ export function MultiplayerManager() {
   // Store Selectors
   const role = useMultiplayerStore(s => s.role);
   const gameCode = useMultiplayerStore(s => s.gameCode);
-  const isQueuing = useMultiplayerStore(s => s.isQueuing);
+  const isMultiplayerActive = useMultiplayerStore(s => s.isMultiplayerActive);
   const rematchRequested = useMultiplayerStore(s => s.rematchRequested);
   const opponentRematchRequested = useMultiplayerStore(s => s.opponentRematchRequested);
+  const connectionType = useMultiplayerStore(s => s.connectionType);
   const phase = useGameStore(s => s.phase);
   // Actions
-  const setRole = useMultiplayerStore(s => s.setRole);
-  const setGameCode = useMultiplayerStore(s => s.setGameCode);
   const setPeerId = useMultiplayerStore(s => s.setPeerId);
   const setStatus = useMultiplayerStore(s => s.setStatus);
   const setError = useMultiplayerStore(s => s.setError);
   const setOpponentId = useMultiplayerStore(s => s.setOpponentId);
   const resetMultiplayer = useMultiplayerStore(s => s.reset);
-  const leaveQueue = useMultiplayerStore(s => s.leaveQueue);
   const setOpponentRematchRequested = useMultiplayerStore(s => s.setOpponentRematchRequested);
   const setRematchRequested = useMultiplayerStore(s => s.setRematchRequested);
+  const onMatchFound = useMultiplayerStore(s => s.onMatchFound);
+  const setConnectionType = useMultiplayerStore(s => s.setConnectionType);
   const startGame = useGameStore(s => s.startGame);
   const resetMatch = useGameStore(s => s.resetMatch);
-  // 1. Queue Connection Logic
+  // --- DATA HANDLING ---
+  const handleData = useCallback((data: any, myRole: MultiplayerRole) => {
+    if (myRole === 'host') {
+      if (data.type === 'input') physicsEngine.setRemoteInput(data.payload);
+      else if (data.type === 'rematch_request') {
+          setOpponentRematchRequested(true);
+          toast.info('Opponent wants a rematch!');
+      }
+    } else {
+      if (data.type === 'state') physicsEngine.injectState(data.payload);
+      else if (data.type === 'start') startGame('multiplayer');
+      else if (data.type === 'restart') {
+          startGame('multiplayer');
+          setRematchRequested(false);
+          setOpponentRematchRequested(false);
+          toast.success('Rematch started!');
+      }
+      else if (data.type === 'rematch_request') {
+          setOpponentRematchRequested(true);
+          toast.info('Opponent wants a rematch!');
+      }
+    }
+  }, [startGame, setOpponentRematchRequested, setRematchRequested]);
+  // --- SENDING LOGIC (Dual Transport) ---
+  const sendData = useCallback((data: any) => {
+    const currentType = useMultiplayerStore.getState().connectionType;
+    // Prefer P2P if available
+    if (currentType === 'p2p' && connRef.current?.open) {
+      connRef.current.send(data);
+    } 
+    // Fallback to Relay
+    else if (queueWsRef.current?.readyState === WebSocket.OPEN) {
+      queueWsRef.current.send(JSON.stringify({ type: 'RELAY', payload: data }));
+    }
+  }, []);
+  // --- 1. PERSISTENT WEBSOCKET (Queue + Relay) ---
   useEffect(() => {
-    if (isQueuing) {
-      // Connect to Queue WebSocket
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host;
-      const wsUrl = `${protocol}//${host}/api/queue`;
-      console.log('Connecting to queue:', wsUrl);
-      const ws = new WebSocket(wsUrl);
-      queueWsRef.current = ws;
-      ws.onopen = () => {
-        console.log('Connected to matchmaking queue');
-      };
-      ws.onmessage = (event) => {
+    if (!isMultiplayerActive) {
+        if (queueWsRef.current) {
+            queueWsRef.current.close();
+            queueWsRef.current = null;
+        }
+        return;
+    }
+    if (queueWsRef.current?.readyState === WebSocket.OPEN) return;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const wsUrl = `${protocol}//${host}/api/queue`;
+    console.log('Connecting to matchmaking server...');
+    const ws = new WebSocket(wsUrl);
+    queueWsRef.current = ws;
+    ws.onopen = () => {
+        console.log('Connected to matchmaking server');
+    };
+    ws.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'MATCH_FOUND') {
-            console.log('Match found!', data);
-            leaveQueue(); // Stop queuing UI
-            setGameCode(data.code);
-            setRole(data.role);
-            toast.success('Match Found! Connecting...');
-          }
+            const data = JSON.parse(event.data);
+            if (data.type === 'MATCH_FOUND') {
+                console.log('Match found via Relay!', data);
+                onMatchFound(data.role, data.code);
+                toast.success('Match Found! Connected via Relay');
+                // Start Game Immediately via Relay
+                physicsEngine.setMode(data.role === 'host' ? 'host' : 'client');
+                startGame('multiplayer');
+            } else if (data.type === 'RELAY') {
+                // Handle Relay Data
+                const myRole = useMultiplayerStore.getState().role;
+                if (myRole) {
+                    handleData(data.payload, myRole);
+                }
+            }
         } catch (e) {
-          console.error('Failed to parse queue message', e);
+            console.error('WS Message Error', e);
         }
-      };
-      ws.onclose = () => {
-        console.log('Disconnected from queue');
-        if (useMultiplayerStore.getState().isQueuing) {
-            // If still supposed to be queuing but disconnected, show error
-            // Unless we left intentionally
-        }
-      };
-      ws.onerror = (err) => {
-        console.error('Queue WebSocket error', err);
-        toast.error('Matchmaking service unavailable');
-        leaveQueue();
-      };
-      return () => {
+    };
+    ws.onclose = () => {
+        console.log('Disconnected from matchmaking server');
+    };
+    return () => {
         ws.close();
         queueWsRef.current = null;
-      };
-    }
-  }, [isQueuing, leaveQueue, setGameCode, setRole]);
-  // 2. Peer Connection Setup
-  const setupConnectionListeners = useCallback((conn: DataConnection, myRole: 'host' | 'client') => {
+    };
+  }, [isMultiplayerActive, onMatchFound, startGame, handleData]);
+  // --- 2. P2P CONNECTION (Upgrade) ---
+  const setupP2PListeners = useCallback((conn: DataConnection, myRole: 'host' | 'client') => {
+    conn.on('open', () => {
+        console.log('P2P Connection Established!');
+        setConnectionType('p2p');
+        setStatus('connected');
+        toast.success('Connection upgraded to P2P!');
+    });
     conn.on('data', (data: any) => {
-      if (myRole === 'host') {
-        if (data.type === 'input') physicsEngine.setRemoteInput(data.payload);
-        else if (data.type === 'rematch_request') {
-            setOpponentRematchRequested(true);
-            toast.info('Opponent wants a rematch!');
-        }
-      } else {
-        if (data.type === 'state') physicsEngine.injectState(data.payload);
-        else if (data.type === 'start') startGame('multiplayer');
-        else if (data.type === 'restart') {
-            startGame('multiplayer');
-            setRematchRequested(false);
-            setOpponentRematchRequested(false);
-            toast.success('Rematch started!');
-        }
-        else if (data.type === 'rematch_request') {
-            setOpponentRematchRequested(true);
-            toast.info('Opponent wants a rematch!');
-        }
-      }
+        // Only process P2P data if we are in P2P mode
+        // This prevents duplicate processing if Relay is also active (though unlikely)
+        handleData(data, myRole);
     });
     conn.on('close', () => {
-      console.log('Connection closed');
-      setStatus('disconnected');
-      if (useGameStore.getState().phase === 'playing') {
-        resetMatch();
-        toast.error('Opponent disconnected');
+      console.log('P2P Connection closed');
+      // Fallback to Relay if possible? 
+      // Usually if P2P closes, it might mean total disconnect, but let's check WS
+      if (queueWsRef.current?.readyState === WebSocket.OPEN) {
+          setConnectionType('relay');
+          toast.warning('P2P lost. Falling back to Relay.');
+      } else {
+          setStatus('disconnected');
+          if (useGameStore.getState().phase === 'playing') {
+            resetMatch();
+            toast.error('Opponent disconnected');
+          }
+          resetMultiplayer();
       }
-      resetMultiplayer();
     });
     conn.on('error', (err) => {
-      console.error('Connection error:', err);
-      setError(err.message);
-      toast.error('Connection lost');
+      console.error('P2P Connection error:', err);
+      // Don't kill game if Relay is working
+      if (useMultiplayerStore.getState().connectionType === 'relay') {
+          // Silent fail or warning
+      } else {
+          setError(err.message);
+      }
     });
-  }, [setStatus, setError, resetMatch, resetMultiplayer, setOpponentRematchRequested, setRematchRequested, startGame]);
-  // 3. Handle Incoming Connection (Host Side)
-  const handleIncomingConnection = useCallback((conn: DataConnection) => {
-    connRef.current = conn;
-    setStatus('connecting');
-    conn.on('open', () => {
-      console.log('Connected to client:', conn.peer);
-      setStatus('connected');
-      setOpponentId(conn.peer);
-      // Host starts game immediately upon connection
-      startGame('multiplayer');
-      physicsEngine.setMode('host');
-      conn.send({ type: 'start' });
-      toast.success('Client connected! Starting game...');
-    });
-    setupConnectionListeners(conn, 'host');
-  }, [setStatus, setOpponentId, startGame, setupConnectionListeners]);
-  // 4. Handle Outgoing Connection (Client Side)
-  const connectToHost = useCallback((hostCode: string) => {
-    if (!peerRef.current) return;
-    const hostId = `${ID_PREFIX}${hostCode}`;
-    console.log('Connecting to host:', hostId);
-    setStatus('connecting');
-    const conn = peerRef.current.connect(hostId);
-    connRef.current = conn;
-    conn.on('open', () => {
-      console.log('Connected to host:', conn.peer);
-      setStatus('connected');
-      setOpponentId(conn.peer);
-      physicsEngine.setMode('client');
-      toast.success('Connected to Host!');
-    });
-    setupConnectionListeners(conn, 'client');
-  }, [setStatus, setOpponentId, setupConnectionListeners]);
-  // Initialize Peer when Role & GameCode are set (after Queue match)
+  }, [setStatus, setError, resetMatch, resetMultiplayer, handleData, setConnectionType]);
+  // Initialize PeerJS when Match is Found
   useEffect(() => {
-    // Need both role and gameCode to start PeerJS
     if (!role || !gameCode) {
         if (peerRef.current) {
             peerRef.current.destroy();
@@ -156,74 +160,63 @@ export function MultiplayerManager() {
         }
         return;
     }
-    // If peer already exists, destroy it to ensure clean state
-    if (peerRef.current) {
-        peerRef.current.destroy();
-    }
+    if (peerRef.current) peerRef.current.destroy();
     const isHost = role === 'host';
-    // Host uses specific ID based on gameCode, Client uses random ID
     const myId = isHost ? `${ID_PREFIX}${gameCode}` : undefined;
-    const peer = new Peer(myId);
+    const peer = new Peer(myId, {
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478' },
+        ],
+      },
+    });
     peerRef.current = peer;
     peer.on('open', (id) => {
         console.log('Peer initialized:', id);
         setPeerId(id);
         if (!isHost) {
             // Client connects to Host
-            connectToHost(gameCode);
+            const hostId = `${ID_PREFIX}${gameCode}`;
+            const conn = peer.connect(hostId);
+            connRef.current = conn;
+            setupP2PListeners(conn, 'client');
         }
     });
     peer.on('connection', (conn) => {
-        // Only host accepts connections
         if (isHost) {
-            handleIncomingConnection(conn);
+            connRef.current = conn;
+            setOpponentId(conn.peer);
+            setupP2PListeners(conn, 'host');
         } else {
             conn.close();
         }
     });
     peer.on('error', (err) => {
         console.error('Peer error:', err);
-        setError(err.message);
-        setStatus('error');
-        toast.error(`Network Error: ${err.message}`);
+        if (useMultiplayerStore.getState().connectionType === 'relay') {
+             toast.warning('P2P Failed. Playing via Relay.');
+        } else {
+             setError(err.message);
+        }
     });
     return () => {
         peer.destroy();
         peerRef.current = null;
     };
-  }, [role, gameCode, connectToHost, handleIncomingConnection, setPeerId, setError, setStatus]);
-  // Rematch Request Sender
-  useEffect(() => {
-    if (rematchRequested && connRef.current?.open) {
-      connRef.current.send({ type: 'rematch_request' });
-    }
-  }, [rematchRequested]);
-  // Host Rematch Logic
-  useEffect(() => {
-    if (role === 'host' && rematchRequested && opponentRematchRequested) {
-        startGame('multiplayer');
-        physicsEngine.setMode('host');
-        connRef.current?.send({ type: 'restart' });
-        setRematchRequested(false);
-        setOpponentRematchRequested(false);
-        toast.success('Rematch started!');
-    }
-  }, [role, rematchRequested, opponentRematchRequested, startGame, setRematchRequested, setOpponentRematchRequested]);
-  // Sync Loops
+  }, [role, gameCode, setPeerId, setError, setupP2PListeners, setOpponentId]);
+  // --- SYNC LOOPS (Using sendData) ---
   useEffect(() => {
     if (role !== 'host') return;
     const interval = setInterval(() => {
-      if (connRef.current?.open) {
-        connRef.current.send({ type: 'state', payload: physicsEngine.getSnapshot() });
-      }
+        sendData({ type: 'state', payload: physicsEngine.getSnapshot() });
     }, 50);
     return () => clearInterval(interval);
-  }, [role, phase]);
+  }, [role, phase, sendData]);
   useEffect(() => {
     if (role !== 'client') return;
     const interval = setInterval(() => {
-      if (connRef.current?.open) {
-        connRef.current.send({
+        sendData({
           type: 'input',
           payload: {
             joystick: gameInput.joystick,
@@ -231,9 +224,25 @@ export function MultiplayerManager() {
             isDodging: gameInput.isDodging
           }
         });
-      }
     }, 33);
     return () => clearInterval(interval);
-  }, [role, phase]);
+  }, [role, phase, sendData]);
+  // Rematch Logic
+  useEffect(() => {
+    if (rematchRequested) {
+      sendData({ type: 'rematch_request' });
+    }
+  }, [rematchRequested, sendData]);
+  // Host Rematch Start
+  useEffect(() => {
+    if (role === 'host' && rematchRequested && opponentRematchRequested) {
+        startGame('multiplayer');
+        physicsEngine.setMode('host');
+        sendData({ type: 'restart' });
+        setRematchRequested(false);
+        setOpponentRematchRequested(false);
+        toast.success('Rematch started!');
+    }
+  }, [role, rematchRequested, opponentRematchRequested, startGame, setRematchRequested, setOpponentRematchRequested, sendData]);
   return null;
 }
