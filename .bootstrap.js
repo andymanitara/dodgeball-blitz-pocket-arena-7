@@ -93,7 +93,8 @@ function runSetupCommands() {
     "bun add @cloudflare/workers-types",
     "bun add @radix-ui/react-tabs",
     "bun add -d vite-plugin-pwa",
-    "bun install --force"
+    "bun install --force",
+    "bun add @radix-ui/react-tooltip"
 ];
     
     if (commands.length === 0) {
