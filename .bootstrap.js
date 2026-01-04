@@ -94,7 +94,8 @@ function runSetupCommands() {
     "bun add @radix-ui/react-tabs",
     "bun add -d vite-plugin-pwa",
     "bun install --force",
-    "bun add @radix-ui/react-tooltip"
+    "bun add @radix-ui/react-tooltip",
+    "bun add uuid"
 ];
     
     if (commands.length === 0) {
