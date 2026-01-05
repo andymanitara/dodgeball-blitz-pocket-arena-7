@@ -39,10 +39,11 @@ export class MultiplayerQueueDO extends DurableObject {
       try {
         const data = JSON.parse(event.data as string);
         if (data.type === 'JOIN_SESSION') {
-            const { sessionId, username } = data;
+            const { sessionId, username, isReconnecting } = data;
             if (sessionId && username) {
                 currentSessionId = sessionId;
-                this.handleSessionJoin(ws, sessionId, username);
+                // Pass isReconnecting (default to false if missing)
+                this.handleSessionJoin(ws, sessionId, username, !!isReconnecting);
             }
         }
         else if (data.type === 'RELAY') {
@@ -68,21 +69,37 @@ export class MultiplayerQueueDO extends DurableObject {
         }
     });
   }
-  handleSessionJoin(ws: WebSocket, sessionId: string, username: string) {
+  handleSessionJoin(ws: WebSocket, sessionId: string, username: string, isReconnecting: boolean) {
     const existingPlayer = this.sessions.get(sessionId);
     if (existingPlayer) {
         // --- RECONNECT EXISTING SESSION ---
         existingPlayer.ws = ws;
         existingPlayer.isDisconnected = false;
         existingPlayer.username = username; // Update username
-        // If they were in a match, restore it
+        // CRITICAL FIX: If this is a FRESH connection (not a reconnect) and they have an opponent,
+        // it means they left the previous game UI and are trying to find a NEW match.
+        // We must break the old link to prevent getting stuck in the old match.
+        if (!isReconnecting && existingPlayer.opponent) {
+            // Notify the old opponent that this player has left/reset
+            if (existingPlayer.opponent.ws.readyState === 1) { // 1 = OPEN
+                try {
+                    existingPlayer.opponent.ws.send(JSON.stringify({ type: 'OPPONENT_LEFT' }));
+                } catch (e) { /* ignore */ }
+            }
+            // Unlink opponent
+            existingPlayer.opponent.opponent = undefined; // Opponent is now alone
+            // Unlink self
+            existingPlayer.opponent = undefined;
+            existingPlayer.matchCode = undefined;
+            existingPlayer.role = undefined;
+        }
+        // If they are still in a match (i.e., we didn't break it above), restore it
         if (existingPlayer.opponent) {
             // Ensure they are not in the queue if they are already matched
             const queueIndex = this.queue.findIndex(p => p.sessionId === sessionId);
             if (queueIndex !== -1) {
                 this.queue.splice(queueIndex, 1);
             }
-
             // Notify Self: Restore Match
             try {
                 ws.send(JSON.stringify({

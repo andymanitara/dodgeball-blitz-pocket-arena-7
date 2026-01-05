@@ -12,6 +12,8 @@ export function MultiplayerManager() {
   const connRef = useRef<DataConnection | null>(null);
   const queueWsRef = useRef<WebSocket | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  // Track if the connection drop was accidental (reconnecting) or intentional
+  const isReconnectingRef = useRef(false);
   // Timeout refs for opponent disconnection
   const disconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const disconnectToastIdRef = useRef<string | number | null>(null);
@@ -110,11 +112,15 @@ export function MultiplayerManager() {
     queueWsRef.current = ws;
     ws.onopen = () => {
         // Send Session ID immediately to identify user and attempt restore
+        // Include isReconnecting flag to tell server if this is a recovery or new session
         ws.send(JSON.stringify({
             type: 'JOIN_SESSION',
             sessionId,
-            username
+            username,
+            isReconnecting: isReconnectingRef.current
         }));
+        // Reset flag after successful handshake
+        isReconnectingRef.current = false;
     };
     ws.onmessage = (event) => {
         try {
@@ -160,6 +166,14 @@ export function MultiplayerManager() {
                     resetMultiplayer();
                 }, RECONNECT_TIMEOUT_MS);
             }
+            else if (data.type === 'OPPONENT_LEFT') {
+                // Opponent explicitly left or started a new session
+                if (disconnectToastIdRef.current) toast.dismiss(disconnectToastIdRef.current);
+                if (disconnectTimeoutRef.current) clearTimeout(disconnectTimeoutRef.current);
+                toast.info('Opponent left the match.');
+                resetMatch();
+                resetMultiplayer();
+            }
             else if (data.type === 'RELAY') {
                 const myRole = useMultiplayerStore.getState().role;
                 if (myRole) {
@@ -180,7 +194,9 @@ export function MultiplayerManager() {
     };
     ws.onclose = () => {
         // Automatic Reconnection Logic
+        // Only attempt reconnect if multiplayer is still active (accidental disconnect)
         if (useMultiplayerStore.getState().isMultiplayerActive) {
+            isReconnectingRef.current = true; // Mark next connection as a reconnect attempt
             setTimeout(() => {
                 setRetryCount(prev => prev + 1);
             }, 3000);
