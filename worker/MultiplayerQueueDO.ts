@@ -32,8 +32,6 @@ export class MultiplayerQueueDO extends DurableObject {
     });
   }
   handleConnection(ws: WebSocket) {
-    // We don't create the player object immediately.
-    // We wait for the 'JOIN_SESSION' message to identify the user.
     let currentSessionId: string | null = null;
     ws.addEventListener('message', (event) => {
       try {
@@ -42,12 +40,10 @@ export class MultiplayerQueueDO extends DurableObject {
             const { sessionId, username, isReconnecting } = data;
             if (sessionId && username) {
                 currentSessionId = sessionId;
-                // Pass isReconnecting (default to false if missing)
                 this.handleSessionJoin(ws, sessionId, username, !!isReconnecting);
             }
         }
         else if (data.type === 'RELAY') {
-            // Relay logic: Forward to opponent if matched
             if (currentSessionId) {
                 const player = this.sessions.get(currentSessionId);
                 if (player && player.opponent && !player.opponent.isDisconnected && player.opponent.ws.readyState === 1) {
@@ -56,7 +52,6 @@ export class MultiplayerQueueDO extends DurableObject {
             }
         }
         else if (data.type === 'PING') {
-            // Heartbeat response
             ws.send(JSON.stringify({ type: 'PONG' }));
         }
       } catch (e) {
@@ -65,7 +60,9 @@ export class MultiplayerQueueDO extends DurableObject {
     });
     ws.addEventListener('close', () => {
         if (currentSessionId) {
-            this.handleDisconnect(currentSessionId);
+            // CRITICAL FIX: Pass the specific WebSocket instance to handleDisconnect
+            // This allows us to ignore close events from stale sockets if the player has already reconnected
+            this.handleDisconnect(currentSessionId, ws);
         }
     });
   }
@@ -75,27 +72,40 @@ export class MultiplayerQueueDO extends DurableObject {
         // --- RECONNECT EXISTING SESSION ---
         existingPlayer.ws = ws;
         existingPlayer.isDisconnected = false;
-        existingPlayer.username = username; // Update username
-        // CRITICAL FIX: If this is a FRESH connection (not a reconnect) and they have an opponent,
-        // it means they left the previous game UI and are trying to find a NEW match.
-        // We must break the old link to prevent getting stuck in the old match.
+        existingPlayer.username = username;
+        // If fresh start (!isReconnecting) and in a match, terminate the old match
         if (!isReconnecting && existingPlayer.opponent) {
-            // Notify the old opponent that this player has left/reset
-            if (existingPlayer.opponent.ws.readyState === 1) { // 1 = OPEN
+            const opponent = existingPlayer.opponent;
+            // Notify opponent
+            if (opponent.ws.readyState === 1) {
                 try {
-                    existingPlayer.opponent.ws.send(JSON.stringify({ type: 'OPPONENT_LEFT' }));
-                } catch (e) { /* ignore */ }
+                    opponent.ws.send(JSON.stringify({ type: 'OPPONENT_LEFT' }));
+                } catch (e) { /* Ignore */ }
             }
-            // Unlink opponent
-            existingPlayer.opponent.opponent = undefined; // Opponent is now alone
+            // Unlink opponent and re-queue if active
+            opponent.opponent = undefined;
+            opponent.matchCode = undefined;
+            opponent.role = undefined;
+            if (opponent.ws.readyState === 1) {
+                if (!this.queue.some(p => p.sessionId === opponent.sessionId)) {
+                    this.queue.push(opponent);
+                }
+                this.matchmake();
+            }
             // Unlink self
             existingPlayer.opponent = undefined;
             existingPlayer.matchCode = undefined;
             existingPlayer.role = undefined;
         }
-        // If they are still in a match (i.e., we didn't break it above), restore it
+        // Ensure the opponent is still linked to us. If not, the match is stale.
+        if (existingPlayer.opponent && existingPlayer.opponent.opponent !== existingPlayer) {
+            existingPlayer.opponent = undefined;
+            existingPlayer.matchCode = undefined;
+            existingPlayer.role = undefined;
+        }
+        // If they are still in a match, restore it
         if (existingPlayer.opponent) {
-            // Ensure they are not in the queue if they are already matched
+            // Ensure they are not in the queue
             const queueIndex = this.queue.findIndex(p => p.sessionId === sessionId);
             if (queueIndex !== -1) {
                 this.queue.splice(queueIndex, 1);
@@ -119,13 +129,12 @@ export class MultiplayerQueueDO extends DurableObject {
                 }
             }
         } else {
-            // If they were in queue (or idle), ensure they are in the queue
-            // Check if they are already in the queue array
+            // If not in match, ensure they are in the queue
             const isInQueue = this.queue.some(p => p.sessionId === sessionId);
             if (!isInQueue) {
                  this.queue.push(existingPlayer);
-                 this.matchmake();
             }
+            this.matchmake();
         }
     } else {
         // --- NEW SESSION ---
@@ -140,53 +149,79 @@ export class MultiplayerQueueDO extends DurableObject {
         this.matchmake();
     }
   }
-  handleDisconnect(sessionId: string) {
+  handleDisconnect(sessionId: string, ws: WebSocket) {
     const player = this.sessions.get(sessionId);
     if (!player) return;
+    // CRITICAL FIX: Race Condition Guard
+    // If the player's current socket is NOT the one that just closed,
+    // it means they have already reconnected. Ignore this close event.
+    if (player.ws !== ws) {
+        return;
+    }
     player.isDisconnected = true;
-    // If in queue, remove immediately (no point keeping a disconnected player in queue)
+    // If in queue, remove immediately
     const queueIndex = this.queue.findIndex(p => p.sessionId === sessionId);
     if (queueIndex !== -1) {
         this.queue.splice(queueIndex, 1);
         this.sessions.delete(sessionId);
         return;
     }
-    // If in match, notify opponent of temporary disconnect
+    // If in match, notify opponent but DO NOT UNLINK yet (allow reconnect)
     if (player.opponent) {
-        if (player.opponent.ws.readyState === 1) {
+        const opponent = player.opponent;
+        if (opponent.ws.readyState === 1) {
             try {
-                player.opponent.ws.send(JSON.stringify({ type: 'OPPONENT_DISCONNECTED_TEMP' }));
+                opponent.ws.send(JSON.stringify({ type: 'OPPONENT_DISCONNECTED_TEMP' }));
             } catch (e) {
                 console.warn('Failed to send OPPONENT_DISCONNECTED_TEMP', e);
             }
         }
-        // Note: We do NOT delete the session here. We keep it to allow reconnection.
+        // We keep the session alive for potential reconnection
     } else {
-        // If not in queue and not in match (zombie state), clean up
+        // Zombie state (not in queue, not in match)
         this.sessions.delete(sessionId);
     }
   }
   matchmake() {
-    // Filter out disconnected players from queue
-    this.queue = this.queue.filter(p => !p.isDisconnected && p.ws.readyState === 1 && !p.opponent);
-    while (this.queue.length >= 2) {
-      const p1 = this.queue.shift()!;
-      const p2 = this.queue.shift()!;
-      // Link players
-      p1.opponent = p2;
-      p2.opponent = p1;
-      p1.role = 'host';
-      p2.role = 'client';
-      const gameCode = crypto.randomUUID().substring(0, 8).toUpperCase();
-      p1.matchCode = gameCode;
-      p2.matchCode = gameCode;
-      try {
-        p1.ws.send(JSON.stringify({ type: 'MATCH_FOUND', role: 'host', code: gameCode }));
-        p2.ws.send(JSON.stringify({ type: 'MATCH_FOUND', role: 'client', code: gameCode }));
-      } catch (e) {
-        console.warn('Failed to send MATCH_FOUND', e);
-        // If send fails, we might lose a match, but the queue filter above helps prevent this
-      }
+    // 1. Clean up dead players from queue
+    // Only remove if explicitly disconnected or socket is closed/closing
+    this.queue = this.queue.filter(p => {
+        if (p.isDisconnected) return false;
+        if (p.ws.readyState === 3 || p.ws.readyState === 2) return false;
+        if (p.opponent) return false; // Should not be in queue if matched
+        return true;
+    });
+    // 2. Find pairs of OPEN connections
+    // We iterate manually to skip CONNECTING sockets without removing them
+    // Find first ready player
+    const p1Index = this.queue.findIndex(p => p.ws.readyState === 1);
+    // If we have at least one ready player, try to find a second one
+    if (p1Index !== -1) {
+        // Find second ready player (must be after p1)
+        const p2Index = this.queue.findIndex((p, idx) => idx > p1Index && p.ws.readyState === 1);
+        if (p2Index !== -1) {
+            const p1 = this.queue[p1Index];
+            const p2 = this.queue[p2Index];
+            // Remove from queue (higher index first to preserve lower index)
+            this.queue.splice(p2Index, 1);
+            this.queue.splice(p1Index, 1);
+            // Link players
+            p1.opponent = p2;
+            p2.opponent = p1;
+            p1.role = 'host';
+            p2.role = 'client';
+            const gameCode = crypto.randomUUID().substring(0, 8).toUpperCase();
+            p1.matchCode = gameCode;
+            p2.matchCode = gameCode;
+            try {
+                p1.ws.send(JSON.stringify({ type: 'MATCH_FOUND', role: 'host', code: gameCode }));
+                p2.ws.send(JSON.stringify({ type: 'MATCH_FOUND', role: 'client', code: gameCode }));
+            } catch (e) {
+                console.warn('Failed to send MATCH_FOUND', e);
+            }
+            // Recursively try to match more players
+            this.matchmake();
+        }
     }
   }
 }
