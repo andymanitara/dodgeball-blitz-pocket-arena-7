@@ -18,6 +18,7 @@ const dummyEntity = {
   holdingBallId: null,
   isHit: false
 };
+const STYLE_NAMES = ['Spiky', 'Afro', 'Bun', 'Cap', 'Headphones'];
 function CharacterPreview({ hairStyle }: { hairStyle: number }) {
   const groupRef = useRef<THREE.Group>(null);
   useFrame((state, delta) => {
@@ -55,8 +56,8 @@ export function ProfileCreation() {
   const cycleHair = (direction: number) => {
     setHairStyle(prev => {
       const next = prev + direction;
-      if (next < 0) return 4; // Updated to 4
-      if (next > 4) return 0; // Updated to 4
+      if (next < 0) return 4;
+      if (next > 4) return 0;
       return next;
     });
   };
@@ -153,8 +154,8 @@ export function ProfileCreation() {
                     >
                     <ChevronLeft className="w-6 h-6" />
                     </Button>
-                    <span className="text-white font-bold text-lg">
-                    Style {hairStyle + 1}
+                    <span className="text-white font-bold text-lg w-32 text-center">
+                    {STYLE_NAMES[hairStyle]}
                     </span>
                     <Button
                     variant="ghost"
