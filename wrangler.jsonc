@@ -4,7 +4,7 @@
  */
  {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "dodgeball-blitz-hyfmfg7k",
+	"name": "dodgeball-blitz-pocket-arena",
 	"main": "worker/index.ts",
 	"compatibility_date": "2025-04-24",
 	"assets": {
@@ -13,5 +13,21 @@
 	},
 	"observability": {
 		"enabled": true
-	}
+	},
+
+  // ... existing config
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MULTIPLAYER_QUEUE",
+        "class_name": "MultiplayerQueueDO"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["MultiplayerQueueDO"]
+    }
+  ]
 }
