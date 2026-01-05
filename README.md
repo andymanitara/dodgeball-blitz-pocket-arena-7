@@ -1,5 +1,5 @@
 # Dodgeball Blitz: Pocket Arena
-[aureliabutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/andymanitara/dodgeball-blitz-pocket-arena-7)
 A comedic, high-energy 1v1 dodgeball game played in portrait mode on mobile. The game features a 2.5D visual style where 3D characters and balls interact on a stylized court with depth, while controls remain simple and arcade-like.
 ## Overview
 **Dodgeball Blitz: Pocket Arena** places players in a "Kid Playful" aesthetic world where they control a 'Blue' hero on the bottom half of the court against a 'Red' AI bot on the top half. The core gameplay involves moving with a virtual joystick, picking up physics-based balls, and throwing them to hit the opponent while dodging incoming attacks.
@@ -58,7 +58,7 @@ bun run build
 *   `public/`: Static assets
 ## Deployment
 This project is configured to deploy to Cloudflare Workers.
-[aureliabutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/andymanitara/dodgeball-blitz-pocket-arena-7)
 ### Manual Deployment
 1.  Ensure you have `wrangler` installed and authenticated:
     ```bash
