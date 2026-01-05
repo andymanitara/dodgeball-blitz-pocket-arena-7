@@ -1,10 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { X, Volume2, VolumeX, Music, Smartphone, Settings, Network, RotateCcw } from 'lucide-react';
+import { X, Volume2, VolumeX, Music, Smartphone, Settings, Network, RotateCcw, Trash2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { useGameStore } from '@/store/useGameStore';
+import { toast } from 'sonner';
 interface SettingsModalProps {
   onClose: () => void;
 }
@@ -14,6 +15,20 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const resetSettings = useGameStore(s => s.resetSettings);
   const handleReset = () => {
     resetSettings();
+    toast.success('Settings reset to defaults');
+  };
+  const handleFlushQueue = async () => {
+    try {
+        const res = await fetch('/api/queue', { method: 'DELETE' });
+        if (res.ok) {
+            toast.success('Queue flushed successfully. All players disconnected.');
+        } else {
+            toast.error('Failed to flush queue');
+        }
+    } catch (e) {
+        toast.error('Error flushing queue');
+        console.error(e);
+    }
   };
   return (
     // Added pointer-events-auto to ensure clicks are captured
@@ -108,6 +123,23 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 <Button className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-6 rounded-xl" onClick={onClose}>
                     Close
                 </Button>
+            </div>
+            {/* Danger Zone */}
+            <div className="pt-4 border-t border-slate-800 mt-4">
+                <div className="flex items-center gap-2 text-red-500 mb-2">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Danger Zone</span>
+                </div>
+                <Button
+                    variant="destructive"
+                    className="w-full bg-red-900/50 hover:bg-red-900 text-red-200 border border-red-800"
+                    onClick={handleFlushQueue}
+                >
+                    <Trash2 className="w-4 h-4 mr-2" /> Flush Matchmaking Queue
+                </Button>
+                <p className="text-[10px] text-slate-500 mt-2 text-center">
+                    Disconnects all players and clears the server state. Use for debugging.
+                </p>
             </div>
           </CardContent>
         </Card>

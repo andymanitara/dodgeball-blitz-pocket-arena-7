@@ -113,11 +113,11 @@ export function MultiplayerManager() {
     ws.onopen = () => {
         // Send Session ID immediately to identify user and attempt restore
         // Include isReconnecting flag to tell server if this is a recovery or new session
-        ws.send(JSON.stringify({
-            type: 'JOIN_SESSION',
-            sessionId,
+        ws.send(JSON.stringify({ 
+            type: 'JOIN_SESSION', 
+            sessionId, 
             username,
-            isReconnecting: isReconnectingRef.current
+            isReconnecting: isReconnectingRef.current 
         }));
         // Reset flag after successful handshake
         isReconnectingRef.current = false;
@@ -192,7 +192,15 @@ export function MultiplayerManager() {
             console.error('WS Message Error', e);
         }
     };
-    ws.onclose = () => {
+    ws.onclose = (event) => {
+        // NEW: Handle Server Reset (Code 4000)
+        if (event.code === 4000 || event.reason === 'Server Reset') {
+            toast.error('Server state was reset. Please rejoin.');
+            resetMatch();
+            resetMultiplayer();
+            isReconnectingRef.current = false; // Prevent reconnect
+            return;
+        }
         // Automatic Reconnection Logic
         // Only attempt reconnect if multiplayer is still active (accidental disconnect)
         if (useMultiplayerStore.getState().isMultiplayerActive) {
@@ -322,9 +330,9 @@ export function MultiplayerManager() {
             isThrowing: gameInput.isThrowing,
             isDodging: gameInput.isDodging
         };
-        sendData({
-          type: 'input',
-          payload
+        sendData({ 
+          type: 'input', 
+          payload 
         });
     }, 33);
     return () => clearInterval(interval);

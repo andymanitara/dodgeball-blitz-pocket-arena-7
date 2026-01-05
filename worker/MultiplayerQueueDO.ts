@@ -18,6 +18,10 @@ export class MultiplayerQueueDO extends DurableObject {
   // Queue only holds players waiting for a match
   private queue: Player[] = [];
   async fetch(request: Request): Promise<Response> {
+    // Handle DELETE request to reset state
+    if (request.method === 'DELETE') {
+        return this.resetState();
+    }
     const upgradeHeader = request.headers.get('Upgrade');
     if (!upgradeHeader || upgradeHeader !== 'websocket') {
       return new Response('Expected Upgrade: websocket', { status: 426 });
@@ -29,6 +33,23 @@ export class MultiplayerQueueDO extends DurableObject {
     return new Response(null, {
       status: 101,
       webSocket: client,
+    });
+  }
+  async resetState(): Promise<Response> {
+    // Close all active connections with a specific code (4000) indicating server reset
+    for (const player of this.sessions.values()) {
+        try {
+            player.ws.close(4000, "Server Reset");
+        } catch (e) {
+            // Ignore errors during close if socket is already closed
+        }
+    }
+    // Clear all state
+    this.sessions.clear();
+    this.queue = [];
+    return new Response(JSON.stringify({ success: true, message: "Queue flushed and all players disconnected" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
     });
   }
   handleConnection(ws: WebSocket) {
@@ -112,10 +133,10 @@ export class MultiplayerQueueDO extends DurableObject {
             }
             // Notify Self: Restore Match
             try {
-                ws.send(JSON.stringify({
-                    type: 'MATCH_RESTORED',
-                    role: existingPlayer.role,
-                    code: existingPlayer.matchCode
+                ws.send(JSON.stringify({ 
+                    type: 'MATCH_RESTORED', 
+                    role: existingPlayer.role, 
+                    code: existingPlayer.matchCode 
                 }));
             } catch (e) {
                 console.warn('Failed to send MATCH_RESTORED', e);
