@@ -5,6 +5,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { userRoutes } from './userRoutes';
 import { Env } from './core-utils';
+export { MultiplayerQueueDO } from './MultiplayerQueueDO';
 
 export interface ClientErrorReport {
   message: string;
